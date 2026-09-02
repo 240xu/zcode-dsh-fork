@@ -1,0 +1,77 @@
+/**
+ * zcode-prompt plugin: the behavior section must carry the byte-verified
+ * ZCode anchor strings, and the tool-semantics section must surface all
+ * fifteen direct-map ZCode tool descriptions with their real first lines.
+ */
+
+import { describe, expect, it } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import * as ZcodePrompt from '@deepseek-ai/dsh-zcode-prompt/src/index.ts'
+import { BEHAVIOR_TEXT } from '@deepseek-ai/dsh-zcode-prompt/src/behavior-text.ts'
+import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
+
+describe('the behavior text', () => {
+  it('carries the bundle-verified ZCode anchor strings', () => {
+    // identity-section-3.10.2.txt (# Harness block)
+    expect(BEHAVIOR_TEXT).toContain('Text you output outside of tool use is displayed to the user')
+    expect(BEHAVIOR_TEXT).toContain('Tools run behind a user-selected permission mode')
+    expect(BEHAVIOR_TEXT).toContain('Prefer the dedicated file/search tools over shell commands')
+    expect(BEHAVIOR_TEXT).toContain('Reference code as `file_path:line_number`')
+    // dynamic-behavior-3.10.2.txt
+    expect(BEHAVIOR_TEXT).toContain('Your text output is what the user reads')
+    expect(BEHAVIOR_TEXT).toContain('Write code that reads like the surrounding code')
+    expect(BEHAVIOR_TEXT).toContain('Only write a code comment to state a constraint')
+  })
+
+  it('does not duplicate the persona identity sentence', () => {
+    expect(BEHAVIOR_TEXT.startsWith('You are an interactive ZCode agent')).toBe(false)
+  })
+})
+
+describe('the tool descriptions', () => {
+  it('covers the fifteen direct-map tools with ZCode first lines', () => {
+    const expected: Record<string, string> = {
+      read: 'Reads a file from the local filesystem.',
+      write: 'Writes a file to the local filesystem, overwriting if one exists.',
+      edit: 'Performs exact string replacement in a file.',
+      glob: 'Fast file pattern matching. Supports glob patterns like',
+      grep: 'Content search built on ripgrep.',
+      web_fetch: 'Fetches a URL, converts the page to markdown, and answers `prompt` against it using a small fast model.',
+      web_search: 'Search the web. Returns result blocks with titles and URLs. US-only.',
+      todo_read: 'Read the current session todo list',
+      todo_write: 'Create and update a task list for the current session.',
+      skill: 'Execute a skill within the main conversation',
+      bash: 'Executes a bash command and returns its output.',
+      agent: 'Launch a new agent to handle complex, multi-step tasks.',
+      task: 'Claude Code-compatible alias for the Agent tool.',
+      goal_read: 'Reads the current session goal state.',
+      ask_user_question: 'Use this tool only when you are blocked on a decision',
+    }
+    expect(Object.keys(TOOL_DESCRIPTIONS)).toHaveLength(15)
+    for (const [name, firstLine] of Object.entries(expected)) {
+      expect(TOOL_DESCRIPTIONS[name]).toBeTruthy()
+      expect(TOOL_DESCRIPTIONS[name].startsWith(firstLine)).toBe(true)
+    }
+  })
+})
+
+describe('the plugin rows', () => {
+  it('registers both sections into the system prompt registry', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, { persona: 'test persona' })
+    await ctx.plugin(ZcodePrompt)
+
+    const assembly = await ctx.systemPrompt.assemble({})
+    const names = assembly.sections.map(section => section.name)
+    expect(names).toContain('zcode:behavior')
+    expect(names).toContain('zcode:tool-semantics')
+
+    const behavior = assembly.sections.find(section => section.name === 'zcode:behavior')
+    expect(behavior?.text).toContain('# Harness')
+    const semantics = assembly.sections.find(section => section.name === 'zcode:tool-semantics')
+    expect(semantics?.text).toContain('## Read')
+    expect(semantics?.text).toContain('## Bash')
+    expect(semantics?.text).toContain('ZCode parameter')
+  })
+})
