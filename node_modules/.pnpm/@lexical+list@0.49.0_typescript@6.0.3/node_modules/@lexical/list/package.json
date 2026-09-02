@@ -1,0 +1,76 @@
+{
+  "name": "@lexical/list",
+  "description": "This package provides the list feature for Lexical.",
+  "keywords": [
+    "lexical",
+    "editor",
+    "rich-text",
+    "list"
+  ],
+  "license": "MIT",
+  "version": "0.49.0",
+  "main": "./dist/LexicalList.js",
+  "types": "./dist/typescript-too-old.d.ts",
+  "dependencies": {
+    "@lexical/extension": "0.49.0",
+    "@lexical/internal": "0.49.0",
+    "lexical": "0.49.0",
+    "@lexical/utils": "0.49.0",
+    "@lexical/html": "0.49.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facebook/lexical.git",
+    "directory": "packages/lexical-list"
+  },
+  "module": "./dist/LexicalList.mjs",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "import": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalList.dev.mjs",
+        "production": "./dist/LexicalList.prod.mjs",
+        "node": "./dist/LexicalList.node.mjs",
+        "default": "./dist/LexicalList.mjs"
+      },
+      "require": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalList.dev.js",
+        "production": "./dist/LexicalList.prod.js",
+        "default": "./dist/LexicalList.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/__bench__",
+    "!src/__mocks__",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.bench.ts",
+    "!src/**/*.bench.tsx",
+    "README.md",
+    "LICENSE"
+  ],
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/typescript-too-old.d.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "typescript": ">=5.2"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}

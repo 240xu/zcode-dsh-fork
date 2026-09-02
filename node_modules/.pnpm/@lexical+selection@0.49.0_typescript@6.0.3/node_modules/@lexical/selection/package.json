@@ -1,0 +1,74 @@
+{
+  "name": "@lexical/selection",
+  "description": "This package contains utilities and helpers for handling Lexical selection.",
+  "keywords": [
+    "lexical",
+    "editor",
+    "rich-text",
+    "list",
+    "selection"
+  ],
+  "license": "MIT",
+  "version": "0.49.0",
+  "main": "./dist/LexicalSelection.js",
+  "types": "./dist/typescript-too-old.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facebook/lexical.git",
+    "directory": "packages/lexical-selection"
+  },
+  "module": "./dist/LexicalSelection.mjs",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "import": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalSelection.dev.mjs",
+        "production": "./dist/LexicalSelection.prod.mjs",
+        "node": "./dist/LexicalSelection.node.mjs",
+        "default": "./dist/LexicalSelection.mjs"
+      },
+      "require": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalSelection.dev.js",
+        "production": "./dist/LexicalSelection.prod.js",
+        "default": "./dist/LexicalSelection.js"
+      }
+    }
+  },
+  "dependencies": {
+    "lexical": "0.49.0",
+    "@lexical/internal": "0.49.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/__bench__",
+    "!src/__mocks__",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.bench.ts",
+    "!src/**/*.bench.tsx",
+    "README.md",
+    "LICENSE"
+  ],
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/typescript-too-old.d.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "typescript": ">=5.2"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}

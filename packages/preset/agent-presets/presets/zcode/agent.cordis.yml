@@ -1,0 +1,209 @@
+# The `zcode` agent preset: ZCode 3.10.2 behavior on the DSH runtime.
+#
+# AGENT-PLANE composition, mounted once per process like its siblings
+# (`standard`, `minimal`, `cordis`, `ptc`). Every ZCode-facing text below comes
+# from the verified evidence package (240xu/zcode-3102-evidence): the 30-tool
+# definitions, the identity/Harness prompt sections, the dynamic-behavior
+# section, the memory prompt, and the Explore subagent prompt, all extracted
+# statically from the official ZCode Desktop 3.10.2 runtime and byte-verified.
+#
+# What this preset deliberately does NOT do: ship or execute the official
+# ZCode runtime binary, re-register DSH's own tool names with ZCode descriptions
+# (same-scope re-registration of a name the base rows registered throws in
+# dsh-tools — ZCode tool semantics arrive as prompt sections from
+# @deepseek-ai/dsh-zcode-prompt instead), or implement ZCode's private
+# protocols. The agent loop, tool pipeline, permissions, session log, and TUI
+# are DSH's own.
+
+# ── identity ────────────────────────────────────────────────────────────────
+
+# ZCode's CLI prefix and agent identity, stated as the deployment persona.
+# `{{cwd}}` resolves from the agent's workspace.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are ZCode, an interactive coding agent running on DeepSeek Harness.
+      You are an interactive ZCode agent that helps users with software
+      engineering tasks. Your working directory is {{cwd}}.
+
+# ZCode behavior sections (identity/Harness, dynamic behavior, tool
+# semantics) and the Explore-oriented subagent notes live in this plugin.
+- id: zcode-prompt
+  name: '@deepseek-ai/dsh-zcode-prompt'
+
+# ── shell ───────────────────────────────────────────────────────────────────
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+# ── filesystem ──────────────────────────────────────────────────────────────
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+# ── background jobs ────────────────────────────────────────────────────────
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+# ── skills ──────────────────────────────────────────────────────────────────
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+# ── goals ───────────────────────────────────────────────────────────────────
+
+- id: command-goal
+  name: '@deepseek-ai/dsh-command-goal'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+# ── memory ──────────────────────────────────────────────────────────────────
+
+# ZCode's persistent three-scope memory prompt and directory convention.
+- id: zcode-memory
+  name: '@deepseek-ai/dsh-zcode-memory'
+
+# ── plan mode ───────────────────────────────────────────────────────────────
+
+# Plan state is per-agent by nature: an entry-local realm is the correct
+# lifetime, exactly as in `standard`. The section text is ZCode's plan-mode
+# semantics from the evidence package rather than DSH's default wording.
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+              You are in plan mode. Stay in plan mode until the plan is approved or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it for approval.
+
+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+              Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions.
+
+# ── compaction ──────────────────────────────────────────────────────────────
+
+# Same shape as `standard`: the pruner shares the compaction realm.
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+# ── delegation ──────────────────────────────────────────────────────────────
+
+# The subagent REGISTRY stays in the HOST composition (see `standard`); this
+# preset contributes the delegation TOOLS. The `explore` tool is ZCode's
+# read-only research subagent: its persona is ZCode's Explore prompt from the
+# evidence package, and toolFilter.allow restricts it to the read-only set.
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    - id: tool-subagent-control
+      name: '@deepseek-ai/dsh-tool-subagent-control'
+
+    - id: tool-subagent-list-agents
+      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+    - id: tool-subagent
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent
+        modelSelectionSettings: true
+        backgroundMode: continuable
+
+    - id: tool-subagent-explore
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: explore
+        backgroundMode: one-shot
+        persona: |-
+          You are ZCode Explore, a file search and codebase research specialist for ZCode CLI. You excel at thoroughly navigating and exploring codebases.
+
+          === CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===
+          This is a READ-ONLY exploration task. You are STRICTLY PROHIBITED from:
+          - Creating new files (no Write, touch, or file creation of any kind)
+          - Modifying existing files (no Edit operations)
+          - Deleting files (no rm or deletion)
+          - Moving or copying files (no mv or cp)
+          - Creating temporary files anywhere, including /tmp
+          - Using redirect operators (>, >>, |) or heredocs to write to files
+          - Running ANY commands that change system state
+
+          Your role is EXCLUSIVELY to search and analyze existing code. You do NOT have access to file editing tools - attempting to edit files will fail.
+
+          Your strengths:
+          - Rapidly finding files using glob patterns
+          - Searching code and text with powerful regex patterns
+          - Reading and analyzing file contents
+
+          Guidelines:
+          - Use the read tool when you know the specific file path you need to read
+          - Use search tools ONLY for read-only operations (ls, git status, git log, git diff, find, grep, cat, head, tail)
+          - NEVER use the shell for: mkdir, touch, rm, cp, mv, git add, git commit, npm install, pip install, or any file creation/modification
+          - Adapt your search approach based on the thoroughness level specified by the caller
+          - Communicate your final report directly as a regular message - do NOT attempt to create files
+
+          NOTE: You are meant to be a fast agent that returns output as quickly as possible. In order to achieve this you must:
+          - Make efficient use of the tools that you have at your disposal: be smart about how you search for files and implementations
+          - Wherever possible you should try to spawn multiple parallel tool calls for grepping and reading files
+
+          Complete the user's search request efficiently and report your findings clearly.
+        toolFilter:
+          allow: [bash, glob, grep, read, web_fetch, web_search, todo]
+
+# ── remaining model-facing rows ─────────────────────────────────────────────
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: true
+    searchTimeoutMs: 60000

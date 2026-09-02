@@ -1,0 +1,54 @@
+{
+    "name": "@types/use-sync-external-store",
+    "version": "1.5.0",
+    "description": "TypeScript definitions for use-sync-external-store",
+    "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/use-sync-external-store",
+    "license": "MIT",
+    "contributors": [
+        {
+            "name": "eps1lon",
+            "githubUsername": "eps1lon",
+            "url": "https://github.com/eps1lon"
+        },
+        {
+            "name": "Mark Erikson",
+            "githubUsername": "markerikson",
+            "url": "https://github.com/markerikson"
+        }
+    ],
+    "main": "",
+    "types": "index.d.ts",
+    "exports": {
+        ".": {
+            "types": {
+                "default": "./index.d.ts"
+            }
+        },
+        "./with-selector": {
+            "types": {
+                "default": "./with-selector.d.ts"
+            }
+        },
+        "./shim": {
+            "types": {
+                "default": "./shim/index.d.ts"
+            }
+        },
+        "./shim/with-selector": {
+            "types": {
+                "default": "./shim/with-selector.d.ts"
+            }
+        },
+        "./package.json": "./package.json"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/use-sync-external-store"
+    },
+    "scripts": {},
+    "dependencies": {},
+    "peerDependencies": {},
+    "typesPublisherContentHash": "a826746c9dce1a21bcd1d32612cff30605b308e08334d6983422a91a5300d7f8",
+    "typeScriptVersion": "5.1"
+}

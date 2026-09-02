@@ -1,0 +1,74 @@
+{
+  "name": "@lexical/dragon",
+  "description": "This package contains compatibility with Dragon NaturallySpeaking accessibility tools.",
+  "keywords": [
+    "lexical",
+    "editor",
+    "rich-text",
+    "dragon",
+    "accessibility"
+  ],
+  "license": "MIT",
+  "version": "0.49.0",
+  "main": "./dist/LexicalDragon.js",
+  "types": "./dist/typescript-too-old.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facebook/lexical.git",
+    "directory": "packages/lexical-dragon"
+  },
+  "module": "./dist/LexicalDragon.mjs",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "import": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalDragon.dev.mjs",
+        "production": "./dist/LexicalDragon.prod.mjs",
+        "node": "./dist/LexicalDragon.node.mjs",
+        "default": "./dist/LexicalDragon.mjs"
+      },
+      "require": {
+        "types@<5.2": "./dist/typescript-too-old.d.ts",
+        "types": "./dist/index.d.ts",
+        "development": "./dist/LexicalDragon.dev.js",
+        "production": "./dist/LexicalDragon.prod.js",
+        "default": "./dist/LexicalDragon.js"
+      }
+    }
+  },
+  "dependencies": {
+    "@lexical/extension": "0.49.0",
+    "lexical": "0.49.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/__bench__",
+    "!src/__mocks__",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.bench.ts",
+    "!src/**/*.bench.tsx",
+    "README.md",
+    "LICENSE"
+  ],
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/typescript-too-old.d.ts"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "typescript": ">=5.2"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  }
+}

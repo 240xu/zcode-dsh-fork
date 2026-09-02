@@ -1,0 +1,98 @@
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow strict
+ */
+
+import type {
+  BaseSelection,
+  LexicalEditor,
+  RangeSelection,
+  LexicalNode,
+} from 'lexical';
+
+/*
+ * Rich Text
+ */
+
+declare export function $insertDataTransferForRichText(
+  dataTransfer: DataTransfer,
+  selection: BaseSelection,
+  editor: LexicalEditor,
+): void;
+
+declare export function $getHtmlContent(
+  editor: LexicalEditor,
+  selection?: BaseSelection,
+): string | null;
+
+declare export function $getLexicalContent(
+  editor: LexicalEditor,
+): string | null;
+
+declare export function $insertGeneratedNodes(
+  editor: LexicalEditor,
+  nodes: LexicalNode[],
+  selection: BaseSelection,
+): void;
+/*
+ * Plain Text
+ */
+
+/*
+ * Export as JSON
+ */
+
+declare export function $insertDataTransferForPlainText(
+  dataTransfer: DataTransfer,
+  selection: RangeSelection,
+): void;
+
+declare export function $handleRichTextDrop(
+  event: DragEvent,
+  editor: LexicalEditor,
+): boolean;
+
+declare export function $handlePlainTextDrop(
+  event: DragEvent,
+  editor: LexicalEditor,
+): boolean;
+
+declare export function $writeDragSourceToDataTransfer(
+  dataTransfer: DataTransfer,
+  editor: LexicalEditor,
+  selection: RangeSelection,
+): void;
+
+interface BaseSerializedNode {
+  children?: BaseSerializedNode[];
+  type: string;
+  version: number;
+}
+
+declare export function $generateJSONFromSelectedNodes<
+  SerializedNode extends BaseSerializedNode,
+>(
+  editor: LexicalEditor,
+  selection: BaseSelection | null,
+): {
+  namespace: string,
+  nodes: SerializedNode[],
+};
+
+declare export function $generateNodesFromSerializedNodes(
+  serializedNodes: BaseSerializedNode[],
+): LexicalNode[];
+
+declare export function copyToClipboard(
+  editor: LexicalEditor,
+  event: null | ClipboardEvent,
+): Promise<boolean>;
+declare export function caretFromPoint(
+  x: number,
+  y: number,
+  rootElement?: ?HTMLElement,
+): null | {offset: number, node: Node};
