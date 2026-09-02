@@ -1,0 +1,1 @@
+{"version":3,"file":"query-reader.js","sourceRoot":"","sources":["../../../../src/shared/bridge/query-reader.ts"],"names":[],"mappings":"AAAA,6EAA6E;AAK7E;;;;GAIG;AACH,MAAM,UAAU,kCAAkC,CAAC,SAAkC;IACnF,OAAO;QACL,KAAK,CAAC,OAAO;YACX,MAAM,MAAM,GAAG,MAAM,SAAS,CAAC,OAAO,CAAC,EAAE,EAAE,EAAE,iBAAiB,EAAE,CAAC,CAAA;YACjE,OAAO,MAAM,CAAC,IAAI,CAAA;QACpB,CAAC;KACF,CAAA;AACH,CAAC"}

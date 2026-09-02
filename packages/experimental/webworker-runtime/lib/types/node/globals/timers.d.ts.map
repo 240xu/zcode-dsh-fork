@@ -1,0 +1,1 @@
+{"version":3,"file":"timers.d.ts","sourceRoot":"","sources":["../../../../src/node/globals/timers.ts"],"names":[],"mappings":"AAcA,6DAA6D;AAC7D,MAAM,WAAW,WAAW;IAC1B,GAAG,IAAI,WAAW,CAAA;IAClB,KAAK,IAAI,WAAW,CAAA;IACpB,MAAM,IAAI,OAAO,CAAA;IACjB,CAAC,MAAM,CAAC,WAAW,CAAC,IAAI,MAAM,CAAA;CAC/B;AAiCD,wEAAwE;AACxE,wBAAgB,mBAAmB,IAAI,IAAI,CAa1C"}

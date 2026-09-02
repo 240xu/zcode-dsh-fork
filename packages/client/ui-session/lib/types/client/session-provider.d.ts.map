@@ -1,0 +1,1 @@
+{"version":3,"file":"session-provider.d.ts","sourceRoot":"","sources":["../../../src/client/session-provider.tsx"],"names":[],"mappings":"AAAA,+EAA+E;AAC/E,OAAO,EAAY,KAAK,SAAS,EAAE,MAAM,OAAO,CAAA;AAChD,OAAO,KAAK,EACV,gBAAgB,EAAE,qBAAqB,EACxC,MAAM,kCAAkC,CAAA;AAEzC;;;;;GAKG;AACH,wBAAgB,iBAAiB,CAC/B,OAAO,EAAE,qBAAqB,EAC9B,EAAE,KAAK,EAAE,QAAQ,EAAE,EAAE,gBAAgB,GACpC,SAAS,CAIX"}

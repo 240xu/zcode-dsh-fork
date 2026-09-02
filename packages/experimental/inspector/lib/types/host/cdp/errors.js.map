@@ -1,0 +1,1 @@
+{"version":3,"file":"errors.js","sourceRoot":"","sources":["../../../../src/host/cdp/errors.ts"],"names":[],"mappings":"AAAA,mFAAmF;AAEnF,OAAO,EAAE,sBAAsB,EAAE,MAAM,YAAY,CAAA;AAEnD,sFAAsF;AACtF,MAAM,OAAO,6BAA8B,SAAQ,KAAK;IACtD,YAAY,SAAiB;QAC3B,KAAK,CAAC,uBAAuB,SAAS,uCAAuC,sBAAsB,EAAE,CAAC,CAAA;IACxG,CAAC;CACF"}

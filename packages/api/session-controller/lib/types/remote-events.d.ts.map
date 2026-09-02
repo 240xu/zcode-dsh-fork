@@ -1,0 +1,1 @@
+{"version":3,"file":"remote-events.d.ts","sourceRoot":"","sources":["../../src/remote-events.ts"],"names":[],"mappings":"AAAA,sEAAsE;AACtE,KAAK,4BAA4B,GAC7B,sBAAsB,GACtB,mBAAmB,GACnB,mBAAmB,GACnB,qBAAqB,GACrB,oBAAoB,CAAA;AAExB,OAAO,QAAQ,kCAAkC,CAAC;IAChD,UAAU,0BAA2B,SACnC,MAAM,CAAC,4BAA4B,EAAE,IAAI,CAAC;KAAG;CAChD;AAED,OAAO,EAAE,CAAA"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"codec.d.ts","sourceRoot":"","sources":["../../../../../../src/shared/bridge/messages/sources/codec.ts"],"names":[],"mappings":"AAAA,sEAAsE;AAKtE,OAAO,KAAK,EAEV,mBAAmB,EAEnB,kBAAkB,EACnB,MAAM,eAAe,CAAA;AAEtB;;;;GAIG;AACH,wBAAgB,wBAAwB,CAAC,KAAK,EAAE,OAAO,GAAG,mBAAmB,CAmB5E;AAED;;;;GAIG;AACH,wBAAgB,uBAAuB,CAAC,KAAK,EAAE,OAAO,GAAG,kBAAkB,CA4C1E"}

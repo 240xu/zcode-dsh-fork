@@ -19,6 +19,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import { BEHAVIOR_TEXT } from './behavior-text.ts'
 import { TOOL_DESCRIPTIONS } from './tool-texts.ts'
 

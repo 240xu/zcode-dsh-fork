@@ -1,0 +1,1 @@
+{"version":3,"file":"abort-error.d.ts","sourceRoot":"","sources":["../../../../../src/node/builtin_modules/implemented/abort-error.ts"],"names":[],"mappings":"AAAA,gFAAgF;AAEhF;;;;GAIG;AACH,wBAAgB,UAAU,CAAC,MAAM,CAAC,EAAE,OAAO,GAAG,KAAK,GAAG;IAAE,IAAI,EAAE,MAAM,CAAC;IAAC,KAAK,CAAC,EAAE,OAAO,CAAA;CAAE,CAMtF"}

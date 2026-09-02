@@ -1,0 +1,1 @@
+{"version":3,"file":"api-request-trust.d.ts","sourceRoot":"","sources":["../../src/api-request-trust.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;GAaG;AAGH,OAAO,KAAK,EAAE,sBAAsB,EAAE,MAAM,UAAU,CAAA;AAkBtD;;;;;;;;;;;;;GAaG;AACH,wBAAgB,sBAAsB,CAAC,KAAK,EAAE,MAAM,GAAG,IAAI,CAI1D;AAgCD;;;;;GAKG;AACH,wBAAgB,mBAAmB,CAAC,OAAO,EAAE,sBAAsB,EAAE,YAAY,EAAE,SAAS,MAAM,EAAE,GAAG,OAAO,CA2B7G"}

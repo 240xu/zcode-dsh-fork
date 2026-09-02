@@ -1,0 +1,427 @@
+/**
+ * Worker end of the postMessage tunnel. It owns the dispatch lanes and the queue
+ * that holds requests until the host tree is serving:
+ *
+ * - `GET /__boot__` answers from tunnel glue, never from the host API surface,
+ *   because the page needs the boot payload before its Cordis tree exists.
+ * - Privileged `/api` methods take that same direct entry. The method set is not
+ *   restated here: a 401 or 403 from the route lane is retried on the direct
+ *   lane because the page owns the worker and needs no network authentication.
+ * - Everything else is fed into the real webserver route table through the
+ *   request listener the app's fake `node:http` captured, keeping the trust
+ *   fences, byte limits, and status semantics intact.
+ *
+ * A boot failure rejects the whole queue with 503 rather than leaving the page
+ * waiting.
+ * @module @deepseek-ai/dsh-experimental-webworker-runtime/src/transport/tunnel
+ */
+import { parseInboundFrame, } from "./frames.js";
+import { createSyntheticExchange, } from "./synthetic-http.js";
+/** Prefix owning the API methods. */
+export const API_PREFIX = '/api';
+/** Host header the synthesized requests carry; the API trust fence requires one. */
+export const SYNTHETIC_HOST = '127.0.0.1';
+const encoder = new TextEncoder();
+/**
+ * Render a failure with everything nested inside it.
+ *
+ * A boot failure is usually an `AggregateError` of per-entry failures, each
+ * wrapping the plugin's own error as `cause`; only the outermost message names
+ * "loader entries failed to apply", which says nothing about which row broke.
+ *
+ * The page logs the rendered text verbatim for refusals; keep it stable for
+ * anyone matching boot-failure output.
+ * @param reason - Thrown value.
+ * @returns One line per nested failure, indented by depth.
+ */
+export function describeFailure(reason) {
+    const seen = new Set();
+    const lines = [];
+    const walk = (value, depth) => {
+        if (value === null || value === undefined || seen.has(value) || depth > 6)
+            return;
+        seen.add(value);
+        const indent = '  '.repeat(depth);
+        if (!(value instanceof Error)) {
+            // A thrower may pass anything as a cause; JSON keeps an object readable
+            // where the default stringification would print `[object Object]`.
+            const rendered = typeof value === 'string' ? value : JSON.stringify(value);
+            lines.push(`${indent}${rendered ?? typeof value}`);
+            return;
+        }
+        lines.push(`${indent}${value.name}: ${value.message}`);
+        if (value instanceof AggregateError)
+            for (const inner of value.errors)
+                walk(inner, depth + 1);
+        walk(value.cause, depth + 1);
+    };
+    walk(reason, 0);
+    return lines.join('\n');
+}
+/**
+ * Copy bytes into an exact-size ArrayBuffer so it can be transferred.
+ *
+ * Sliced on the ArrayBuffer, not the view: `Uint8Array.prototype.slice` copies,
+ * but a Node-style Buffer overrides `slice()` with view semantics, and the fs
+ * bridge hands VFS reads over as Buffer views into the whole mounted image —
+ * `bytes.slice().buffer` would then post the entire image as the body.
+ */
+function toTransferable(bytes) {
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+/** Recorded response frames, so a route-lane authentication refusal can be discarded. */
+class BufferedSink {
+    calls = [];
+    target;
+    settle;
+    /** Resolves when the exchange either starts streaming or answers in one frame. */
+    settled = new Promise((resolve) => { this.settle = resolve; });
+    sink = {
+        head: (status, headers) => {
+            this.record(() => { this.target?.head(status, headers); });
+            this.settle?.({ streamed: true, status });
+        },
+        chunk: (bytes) => { this.record(() => { this.target?.chunk(bytes); }); },
+        end: (payload) => {
+            this.record(() => { this.target?.end(payload); });
+            this.settle?.({ streamed: payload === undefined, status: payload?.status ?? 200 });
+        },
+        fail: (message) => {
+            this.record(() => { this.target?.fail(message); });
+            this.settle?.({ streamed: true, status: 500 });
+        },
+    };
+    record(call) {
+        if (this.target === undefined)
+            this.calls.push(call);
+        else
+            call();
+    }
+    /**
+     * Send everything recorded so far to a real sink and pass later calls through.
+     * @param target - Sink receiving the frames.
+     */
+    flushTo(target) {
+        this.target = target;
+        for (const call of this.calls.splice(0))
+            call();
+    }
+}
+/** One tunnel per worker; wire {@link TunnelServer.handleMessage} to `onmessage` first. */
+export class TunnelServer {
+    port;
+    requestListener;
+    privilegedMethods;
+    unaryApiLane;
+    queue = [];
+    inFlight = new Map();
+    seams;
+    failure;
+    listener;
+    constructor(options) {
+        this.port = options.port;
+        this.requestListener = options.requestListener;
+        this.privilegedMethods = options.privilegedMethods;
+        this.unaryApiLane = options.unaryApiLane ?? 'route';
+    }
+    /**
+     * Accept one `postMessage` payload.
+     * @param data - Message data from the page.
+     */
+    handleMessage(data) {
+        const frame = parseInboundFrame(data);
+        if (frame.t === 'init') {
+            // The worker entry consumes the opening init before this server exists;
+            // one reaching a live server is a client double-connect.
+            throw new Error('webworker tunnel: duplicate init frame; the tunnel is already open');
+        }
+        if (frame.t === 'abort') {
+            this.inFlight.get(frame.id)?.abort();
+            this.inFlight.delete(frame.id);
+            // A request still parked in the boot queue must not run after its
+            // caller gave up; serve() would otherwise execute it post-boot.
+            const queued = this.queue.findIndex(request => request.id === frame.id);
+            if (queued !== -1)
+                this.queue.splice(queued, 1);
+            return;
+        }
+        if (this.failure !== undefined) {
+            this.refuse(frame, this.failure);
+            return;
+        }
+        if (this.seams === undefined) {
+            this.queue.push(frame);
+            return;
+        }
+        this.dispatchFrame(frame);
+    }
+    /**
+     * Start serving: drains everything queued during boot.
+     * @param seams - Faces that exist only after the host tree is up.
+     */
+    serve(seams) {
+        this.seams = seams;
+        console.info(`webworker tunnel: serving (unary /api lane=${this.unaryApiLane}${this.unaryApiLane === 'route' ? ' with 401/403 retry' : ''}, privileged set=${this.privilegedMethods === undefined ? 'none' : String(this.privilegedMethods.size)}, queued=${String(this.queue.length)})`);
+        for (const frame of this.queue.splice(0))
+            this.dispatchFrame(frame);
+    }
+    /**
+     * Refuse every queued and future request; the page renders this like a server
+     * that failed to start.
+     * @param reason - Boot failure to report.
+     */
+    fail(reason) {
+        const message = describeFailure(reason);
+        this.failure = message;
+        for (const frame of this.queue.splice(0))
+            this.refuse(frame, message);
+    }
+    send(frame, transfer) {
+        this.port.postMessage(frame, transfer);
+    }
+    refuse(frame, message) {
+        if (frame.t === 'stream-open') {
+            this.send({
+                t: 'stream-error',
+                id: frame.id,
+                failure: { kind: 'carrier', message },
+            });
+            return;
+        }
+        const body = toTransferable(encoder.encode(message));
+        this.send({
+            t: 'res',
+            id: frame.id,
+            status: 503,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+            body,
+            message,
+        }, [body]);
+    }
+    dispatchFrame(frame) {
+        if (frame.t === 'stream-open')
+            void this.serveStream(frame);
+        else
+            void this.serveRequest(frame);
+    }
+    async serveStream(frame) {
+        if (this.seams === undefined) {
+            this.refuse(frame, 'webworker tunnel: Remote stream requested before the host tree is serving');
+            return;
+        }
+        const seams = this.seams;
+        const controller = new AbortController();
+        this.inFlight.set(frame.id, { abort: () => { controller.abort(); } });
+        try {
+            const source = await seams.openStream(frame.endpoint, frame.payload, controller.signal);
+            for await (const value of source) {
+                if (controller.signal.aborted)
+                    return;
+                this.send({ t: 'stream-item', id: frame.id, value });
+            }
+            if (!controller.signal.aborted)
+                this.send({ t: 'stream-end', id: frame.id });
+        }
+        catch (error) {
+            if (!controller.signal.aborted) {
+                const failure = seams.streamFailure(error);
+                this.send({
+                    t: 'stream-error',
+                    id: frame.id,
+                    failure: { kind: 'remote', ...failure },
+                });
+            }
+        }
+        finally {
+            this.inFlight.delete(frame.id);
+        }
+    }
+    sinkFor(id) {
+        const send = this.send.bind(this);
+        const inFlight = this.inFlight;
+        return {
+            head(status, headers) {
+                send({ t: 'res-head', id, status, headers });
+            },
+            chunk(bytes) {
+                const buffer = toTransferable(bytes);
+                send({ t: 'res-chunk', id, chunk: buffer }, [buffer]);
+            },
+            end(payload) {
+                if (payload === undefined) {
+                    send({ t: 'res-end', id });
+                }
+                else {
+                    const body = payload.body === undefined ? undefined : toTransferable(payload.body);
+                    send({ t: 'res', id, status: payload.status, headers: payload.headers, body }, body === undefined ? undefined : [body]);
+                }
+                inFlight.delete(id);
+            },
+            fail(message) {
+                send({ t: 'res-err', id, message });
+                inFlight.delete(id);
+            },
+        };
+    }
+    /** The page sends an absolute URL; route handlers read `req.url` as a path. */
+    pathFrame(frame) {
+        const url = new URL(frame.url, `http://${SYNTHETIC_HOST}`);
+        return {
+            // The API trust fence reads `host`, which the page cannot set itself.
+            frame: { ...frame, url: `${url.pathname}${url.search}`, headers: { ...frame.headers, host: SYNTHETIC_HOST } },
+            path: url.pathname,
+        };
+    }
+    async serveRequest(frame) {
+        const sink = this.sinkFor(frame.id);
+        try {
+            const { frame: routed, path } = this.pathFrame(frame);
+            if (path === '/__boot__') {
+                this.serveBoot(frame, sink);
+                return;
+            }
+            if (path.startsWith(`${API_PREFIX}/`)) {
+                await this.serveApi(frame, routed, path, sink);
+                return;
+            }
+            this.dispatch(routed, sink);
+        }
+        catch (reason) {
+            sink.fail(reason instanceof Error ? reason.message : String(reason));
+        }
+    }
+    /**
+     * The listener is captured once and reused, so only requests that arrive
+     * before the web server binds pay an await.
+     * @returns The webserver request listener.
+     */
+    async whenListener() {
+        this.listener ??= await this.requestListener();
+        return this.listener;
+    }
+    /** Feed the real route table through the captured listener. */
+    dispatch(frame, sink, into) {
+        const exchange = createSyntheticExchange(frame, into ?? sink);
+        this.inFlight.set(frame.id, exchange);
+        const listener = this.listener;
+        if (listener !== undefined) {
+            listener(exchange.req, exchange.res);
+            return exchange;
+        }
+        void this.whenListener().then((resolved) => {
+            // A page that gave up while the server was still binding has nothing to answer.
+            if (!exchange.aborted)
+                resolved(exchange.req, exchange.res);
+        }, (reason) => {
+            sink.fail(reason instanceof Error ? reason.message : String(reason));
+        });
+        return exchange;
+    }
+    /**
+     * Unary `/api`: keep the route lane's fences, but fall back to the direct lane
+     * when network authentication or trust rejects the worker-owning page.
+     */
+    async serveApi(original, routed, path, sink) {
+        const method = path.slice(API_PREFIX.length + 1);
+        if (this.unaryApiLane === 'direct' || this.privilegedMethods?.has(method) === true) {
+            await this.serveDirect(original, sink);
+            return;
+        }
+        const buffered = new BufferedSink();
+        const exchange = this.dispatch(routed, sink, buffered.sink);
+        // An abort must release this wait too: an aborted exchange stops emitting
+        // frames, so `settled` alone would never resolve when the handler had not
+        // yet written a head.
+        let settleAborted = () => { };
+        const aborted = new Promise((resolve) => { settleAborted = () => { resolve('aborted'); }; });
+        this.inFlight.set(routed.id, { abort: () => { exchange.abort(); settleAborted(); } });
+        const outcome = await Promise.race([buffered.settled, aborted]);
+        if (outcome === 'aborted' || exchange.aborted)
+            return;
+        // The decision happens at the first frame, before anything reaches the page:
+        // the route lane streams its answers, so a refusal can carry a body too.
+        if (outcome.status === 401 || outcome.status === 403) {
+            console.debug(`webworker tunnel: route lane refused ${method} with ${String(outcome.status)}; answering on the direct lane`);
+            await this.serveDirect(original, sink);
+            return;
+        }
+        buffered.flushTo(sink);
+    }
+    serveBoot(frame, sink) {
+        if (this.seams === undefined)
+            throw new Error('webworker tunnel: boot payload requested before the host tree is serving');
+        if (frame.method !== 'GET') {
+            sink.end({ status: 405, headers: { allow: 'GET' } });
+            return;
+        }
+        const body = encoder.encode(JSON.stringify(this.seams.bootPayload()));
+        sink.end({
+            status: 200,
+            headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+            body,
+        });
+    }
+    async serveDirect(frame, sink) {
+        if (this.seams === undefined)
+            throw new Error('webworker tunnel: direct fetch requested before the host tree is serving');
+        const controller = new AbortController();
+        this.inFlight.set(frame.id, { abort: () => { controller.abort(); } });
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(frame.headers)) {
+            // Forbidden header names throw on a guarded Headers instance.
+            try {
+                headers.set(key, value);
+            }
+            catch {
+                // The fetch handler reads no forbidden header; the route lane owns those.
+            }
+        }
+        const request = new Request(new URL(frame.url, `http://${SYNTHETIC_HOST}`), {
+            method: frame.method,
+            headers,
+            body: frame.body === undefined || frame.method === 'GET' || frame.method === 'HEAD' ? null : frame.body,
+            signal: controller.signal,
+        });
+        const response = await this.seams.directFetch(request);
+        const responseHeaders = {};
+        response.headers.forEach((value, key) => { responseHeaders[key] = value; });
+        // Event streams are the only responses the page consumes incrementally;
+        // everything else answers as one frame, as the route lane does.
+        const streamed = response.body !== null && (responseHeaders['content-type'] ?? '').startsWith('text/event-stream');
+        if (!streamed) {
+            const buffer = await response.arrayBuffer();
+            sink.end({
+                status: response.status,
+                headers: responseHeaders,
+                body: buffer.byteLength === 0 ? undefined : new Uint8Array(buffer),
+            });
+            return;
+        }
+        sink.head(response.status, responseHeaders);
+        const reader = response.body.getReader();
+        this.inFlight.set(frame.id, {
+            abort: () => {
+                controller.abort();
+                void reader.cancel().catch(() => {
+                    // Cancelling an already-errored stream has nothing left to release.
+                });
+            },
+        });
+        try {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done)
+                    break;
+                sink.chunk(value);
+            }
+            sink.end();
+        }
+        catch (reason) {
+            sink.fail(reason instanceof Error ? reason.message : String(reason));
+        }
+        finally {
+            reader.releaseLock();
+        }
+    }
+}
+//# sourceMappingURL=tunnel.js.map

@@ -51,7 +51,7 @@ describe('the tool descriptions', () => {
     expect(Object.keys(TOOL_DESCRIPTIONS)).toHaveLength(15)
     for (const [name, firstLine] of Object.entries(expected)) {
       expect(TOOL_DESCRIPTIONS[name]).toBeTruthy()
-      expect(TOOL_DESCRIPTIONS[name].startsWith(firstLine)).toBe(true)
+      expect(TOOL_DESCRIPTIONS[name]!.startsWith(firstLine)).toBe(true)
     }
   })
 })

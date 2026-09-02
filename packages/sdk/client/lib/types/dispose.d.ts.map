@@ -1,0 +1,1 @@
+{"version":3,"file":"dispose.d.ts","sourceRoot":"","sources":["../../src/dispose.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AAEH,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,oBAAoB,CAAA;AA2DtD;;;;;;;;;;;GAWG;AACH,wBAAsB,qBAAqB,CACzC,KAAK,EAAE,YAAY,EACnB,MAAM,EAAE;IAAE,iBAAiB,EAAE,MAAM,CAAC;IAAC,cAAc,EAAE,MAAM,CAAA;CAAE,EAC7D,QAAQ,GAAE,MAAM,CAAC,QAA2B,GAC3C,OAAO,CAAC,IAAI,CAAC,CAaf"}

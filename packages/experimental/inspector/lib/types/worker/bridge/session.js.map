@@ -1,0 +1,1 @@
+{"version":3,"file":"session.js","sourceRoot":"","sources":["../../../../src/worker/bridge/session.ts"],"names":[],"mappings":"AAAA,gEAAgE;AAShE;;;;;GAKG;AACH,MAAM,UAAU,uBAAuB,CACrC,OAAgC,EAChC,MAAiC,EACjC,KAA+B;IAE/B,IAAI,CAAC;QACH,OAAO,CAAC,IAAI,CAAC,MAAM,EAAE,KAAK,CAAC,CAAA;IAC7B,CAAC;IAAC,MAAM,CAAC;QACP,6EAA6E;IAC/E,CAAC;AACH,CAAC"}

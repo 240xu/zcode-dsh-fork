@@ -1,0 +1,1 @@
+{"version":3,"file":"errors.d.ts","sourceRoot":"","sources":["../../../../src/client/cdp/errors.ts"],"names":[],"mappings":"AAAA,6FAA6F;AAE7F,OAAO,KAAK,EAAE,kBAAkB,EAAE,MAAM,+CAA+C,CAAA;AAEvF,uEAAuE;AACvE,qBAAa,2BAA4B,SAAQ,KAAK;IACxC,QAAQ,CAAC,IAAI,EAAE,kBAAkB,CAAC,MAAM,CAAC;gBAAhC,IAAI,EAAE,kBAAkB,CAAC,MAAM,CAAC,EAAE,OAAO,EAAE,MAAM;CAGvE"}

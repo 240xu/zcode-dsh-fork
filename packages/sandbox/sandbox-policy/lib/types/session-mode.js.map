@@ -1,0 +1,1 @@
+{"version":3,"file":"session-mode.js","sourceRoot":"","sources":["../../src/session-mode.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;;GAkBG;AAsBH,4GAA4G;AAC5G,MAAM,CAAC,MAAM,aAAa,GAA2B,CAAC,WAAW,EAAE,iBAAiB,EAAE,oBAAoB,CAAC,CAAA;AAE3G;;;;;;;;GAQG;AACH,MAAM,UAAU,cAAc,CAAC,OAAgB,EAAE,IAAiB;IAChE,OAAO,CAAC,MAAM,CAAC,cAAc,EAAE,EAAE,IAAI,EAAE,CAAC,CAAA;AAC1C,CAAC"}

@@ -1,0 +1,25 @@
+/**
+ * ZCode 3.10.2 behavior text: identity/Harness plus dynamic behavior.
+ *
+ * Byte-verified evidence: identity-section-3.10.2.txt and
+ * dynamic-behavior-3.10.2.txt in the evidence package
+ * (240xu/zcode-3102-evidence), extracted statically from the official
+ * ZCode Desktop 3.10.2 runtime. This module loads the two evidence files
+ * shipped beside it and joins them verbatim; no wording is authored here.
+ */
+import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const here = dirname(fileURLToPath(import.meta.url));
+/** The identity section, minus its first sentence — the preset's persona row already states it. */
+const identityText = await readFile(join(here, 'identity-section.txt'), 'utf8');
+/** The dynamic-behavior section: communicating with the user, code style, comment policy, risk policy. */
+const dynamicText = await readFile(join(here, 'dynamic-behavior.txt'), 'utf8');
+function trimFirstSentence(text) {
+    const first = 'You are an interactive ZCode agent that helps users with software engineering tasks.';
+    const rest = text.trim().startsWith(first) ? text.trim().slice(first.length) : text;
+    return rest.replace(/^\s+/, '');
+}
+/** ZCode identity/Harness + dynamic behavior, joined verbatim from evidence. */
+export const BEHAVIOR_TEXT = [trimFirstSentence(identityText).trim(), '', dynamicText.trim()].join('\n');
+//# sourceMappingURL=behavior-text.js.map
