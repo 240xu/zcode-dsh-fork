@@ -321,6 +321,12 @@ importers:
       '@deepseek-ai/dsh-workflow-worker-thread':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
+      '@deepseek-ai/dsh-zcode-memory':
+        specifier: workspace:^
+        version: link:../../packages/experimental/zcode-memory
+      '@deepseek-ai/dsh-zcode-prompt':
+        specifier: workspace:^
+        version: link:../../packages/experimental/zcode-prompt
       '@deepseek-ai/schemastery':
         specifier: link:../../vendor/schemastery
         version: link:../../vendor/schemastery
