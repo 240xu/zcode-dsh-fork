@@ -300,6 +300,7 @@
     { "path": "./packages/experimental/agent-team-web-profile" },
     { "path": "./packages/experimental/zcode-prompt" },
     { "path": "./packages/experimental/zcode-memory" },
+    { "path": "./packages/experimental/zcode-todo" },
     { "path": "./packages/workflow/workflow" },
     { "path": "./packages/workflow/workflow-worker-thread" },
     { "path": "./packages/workflow/tool-workflow" },
