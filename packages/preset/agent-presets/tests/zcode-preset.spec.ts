@@ -1,7 +1,7 @@
 /**
  * The shipped `zcode` preset: ZCode 3.10.2 behavior on the DSH runtime.
  *
- * Verified-evidence package: 240xu/zcode-3102-evidence (three-round verified).
+ * Verified-evidence package: 240xu/zcode-agent (three-round verified).
  * The composition reuses DSH's own tool plugins; ZCode semantics arrive as
  * prompt sections, not as re-registered tools (same-scope re-registration of
  * a name the base rows already registered throws in dsh-tools).

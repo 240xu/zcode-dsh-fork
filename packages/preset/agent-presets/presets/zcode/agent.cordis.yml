@@ -2,7 +2,7 @@
 #
 # AGENT-PLANE composition, mounted once per process like its siblings
 # (`standard`, `minimal`, `cordis`, `ptc`). Every ZCode-facing text below comes
-# from the verified evidence package (240xu/zcode-3102-evidence): the 30-tool
+# from the verified evidence package (240xu/zcode-agent): the 30-tool
 # definitions, the identity/Harness prompt sections, the dynamic-behavior
 # section, the memory prompt, and the Explore subagent prompt, all extracted
 # statically from the official ZCode Desktop 3.10.2 runtime and byte-verified.

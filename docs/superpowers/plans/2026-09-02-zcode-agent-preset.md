@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript（DSH cordis 插件体系）、YAML（preset 组合）、zod（schemastery）。
 
-**Spec:** `docs/superpowers/specs/2026-09-02-zcode-agent-preset-design.md`（含证据库指针 `240xu/zcode-3102-evidence`）
+**Spec:** `docs/superpowers/specs/2026-09-02-zcode-agent-preset-design.md`（含证据库指针 `240xu/zcode-agent`）
 
 ## Global Constraints
 
@@ -76,7 +76,7 @@ order: 5
 ```yaml
 # The `zcode` agent preset: ZCode 3.10.2 behavior on the DSH runtime.
 # All ZCode-facing text comes from the verified evidence package
-# (240xu/zcode-3102-evidence, findings/zcode-3.10.2-full.json).
+# (240xu/zcode-agent, findings/zcode-3.10.2-full.json).
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:

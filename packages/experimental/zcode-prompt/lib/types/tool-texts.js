@@ -2,7 +2,7 @@
  * ZCode 3.10.2 tool descriptions, keyed by the DSH tool name each maps to.
  *
  * Generated verbatim from the evidence package's
- * findings/zcode-3.10.2-full.json (240xu/zcode-3102-evidence; three-round
+ * findings/zcode-3.10.2-full.json (240xu/zcode-agent; three-round
  * verified). Do not hand-edit: regenerate from the evidence JSON instead.
  */
 export const TOOL_DESCRIPTIONS = {

@@ -3,7 +3,7 @@
  *
  * Byte-verified evidence: identity-section-3.10.2.txt and
  * dynamic-behavior-3.10.2.txt in the evidence package
- * (240xu/zcode-3102-evidence), extracted statically from the official
+ * (240xu/zcode-agent), extracted statically from the official
  * ZCode Desktop 3.10.2 runtime. This module loads the two evidence files
  * shipped beside it and joins them verbatim; no wording is authored here.
  */

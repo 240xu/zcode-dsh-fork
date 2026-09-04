@@ -2,7 +2,7 @@
 
 **日期**: 2026-09-02
 **状态**: 已验证证据（三轮验证 PASS），待实现
-**证据库**: `240xu/zcode-3102-evidence`（private GitHub repo）
+**证据库**: `240xu/zcode-agent`（private GitHub repo）
 **证据基线**: ZCode Desktop 3.10.2 官方 runtime（zcode.cjs 12,574,097 bytes，静态提取，V1/V2/V3 三轮验证通过）
 
 ---

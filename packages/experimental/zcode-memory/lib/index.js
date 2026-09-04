@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 * ZCode persistent memory section for the zcode agent preset.
 *
 * This plugin ports ZCode 3.10.2's persistent agent memory operating
-* principles (evidence package 240xu/zcode-3102-evidence, extracted
+* principles (evidence package 240xu/zcode-agent, extracted
 * statically from the official runtime):
 *
 * - Prompt template `Isi`: the byte-verified 12K memory prompt shipped
