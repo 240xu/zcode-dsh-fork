@@ -12,6 +12,9 @@
  * - `zcode:behavior` (order 100): identity/Harness + dynamic behavior,
  *   verbatim from the byte-verified evidence files shipped beside this
  *   module.
+ * - `zcode:context` (order 200): ZCode's Context Management section
+ *   (WSr: autonomy and turn-completion guidance), verbatim from
+ *   context-management.txt.
  * - `zcode:tool-semantics` (order 460): ZCode's tool descriptions keyed by
  *   the DSH tool name each maps to, plus the ZCode-side parameter notes the
  *   DSH schemas do not carry.
@@ -20,10 +23,16 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { BEHAVIOR_TEXT } from './behavior-text.ts'
 import { TOOL_DESCRIPTIONS } from './tool-texts.ts'
 
 export const inject = ['systemPrompt']
+
+/** ZCode's Context Management section, verbatim from the shipped evidence file. */
+const CONTEXT_TEXT = await readFile(join(dirname(fileURLToPath(import.meta.url)), 'context-management.txt'), 'utf8')
 
 /** ZCode name for each DSH tool the zcode preset surfaces. */
 const ZCODE_NAME: Record<string, string> = {
@@ -39,6 +48,7 @@ const PARAMETER_NOTES: Record<string, string> = {
   edit: 'ZCode requires the file to have been Read in this conversation before editing; `old_string` must match exactly including indentation and be unique; `replace_all` replaces every occurrence.',
   web_search: 'ZCode notes results are US-only.',
   goal_read: 'ZCode semantics: the goal text is the authoritative long-running objective; do not mark the goal complete without real evidence of achievement — a finished plan or todo list is not completion evidence.',
+  skill: 'ZCode session guidance: when the user types `/<skill-name>`, invoke it via Skill. Only use skills listed in the user-invocable skills section — don\'t guess.',
 }
 
 function toolSemanticsText(): string {
@@ -46,6 +56,14 @@ function toolSemanticsText(): string {
     '# ZCode tool semantics',
     '',
     'The tools available in this session are DSH tools. Their ZCode semantics follow; where a note names ZCode parameters, apply it to the corresponding DSH tool.',
+    '',
+    '## ZCode tools mapped to DSH equivalents',
+    '',
+    '- `EnterPlanMode` / `ExitPlanMode`: this session\'s plan mode (see the plan-mode section). Enter plan mode to align on approach before implementing; exit it to submit the plan for approval. A user\'s conversational agreement approves nothing — only exiting plan mode requests approval.',
+    '- `SendMessage`: continue a background subagent with a follow-up message instead of starting a new one.',
+    '- `TaskOutput` is DEPRECATED upstream: never poll for background results; collect finished background work with `job_output` (wait only when genuinely blocked) and stop irrelevant work with `job_kill` (`TaskStop`).',
+    '- `ApplyPatch`: never call a patch tool directly — perform the same edit with `write`/`edit` (upstream dispatches ApplyPatch to Write/Edit).',
+    '- `ReadSessionContext`: read context from another persisted session with the `session_search`, `session_event_search`, `session_trace`, `session_event_trace`, and `session_event_read` tools (e.g. when the user references a prior session or asks to continue it).',
     '',
   ]
   for (const [dshName, description] of Object.entries(TOOL_DESCRIPTIONS)) {
@@ -69,6 +87,11 @@ export function apply(ctx: Context): void {
     order: 100,
     text: BEHAVIOR_TEXT,
   }), 'zcode behavior section')
+  ctx.effect(() => ctx.systemPrompt.section({
+    name: 'zcode:context',
+    order: 200,
+    text: CONTEXT_TEXT.trim(),
+  }), 'zcode context section')
   ctx.effect(() => ctx.systemPrompt.section({
     name: 'zcode:tool-semantics',
     order: 460,

@@ -213,6 +213,7 @@ describe('the zcode preset against a live model', () => {
       const names = assembly.sections.map(s => s.name)
       expect(names).toContain('deployment:persona')
       expect(names).toContain('zcode:behavior')
+      expect(names).toContain('zcode:context')
       expect(names).toContain('zcode:memory')
       expect(names).toContain('zcode:tool-semantics')
 

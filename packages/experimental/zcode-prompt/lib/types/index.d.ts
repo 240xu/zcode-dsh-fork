@@ -12,6 +12,9 @@
  * - `zcode:behavior` (order 100): identity/Harness + dynamic behavior,
  *   verbatim from the byte-verified evidence files shipped beside this
  *   module.
+ * - `zcode:context` (order 200): ZCode's Context Management section
+ *   (WSr: autonomy and turn-completion guidance), verbatim from
+ *   context-management.txt.
  * - `zcode:tool-semantics` (order 460): ZCode's tool descriptions keyed by
  *   the DSH tool name each maps to, plus the ZCode-side parameter notes the
  *   DSH schemas do not carry.

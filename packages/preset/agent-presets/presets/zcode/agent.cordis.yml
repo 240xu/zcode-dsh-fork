@@ -14,6 +14,17 @@
 # @deepseek-ai/dsh-zcode-prompt instead), or implement ZCode's private
 # protocols. The agent loop, tool pipeline, permissions, session log, and TUI
 # are DSH's own.
+#
+# Permission modes (ZCode 3.10.2 has build/edit/plan/yolo + internal auto;
+# DSH permission is host-level, selected via DSH_PERMISSION_MODE):
+# - ZCode `build` (ask before changes, the default) = DSH `workspace-write`
+#   (the DSH default: write operations ask first).
+# - ZCode `yolo` (full access) = DSH `danger-full-access` (never ask).
+# - ZCode `plan` = the `planning` row below (plan-mode with ZCode semantics).
+# - ZCode `edit` (auto-approve edits, ask for the rest) has no DSH host
+#   equivalent: run under `workspace-write` and grant standing approvals at
+#   the host, or under `danger-full-access` for full autonomy.
+# - ZCode internal `auto` (subagents/background) = DSH's own agent machinery.
 
 # ── identity ────────────────────────────────────────────────────────────────
 
@@ -178,6 +189,8 @@
           - Reading and analyzing file contents
 
           Guidelines:
+          - Use Glob for broad file pattern matching
+          - Use Grep for searching file contents with regex
           - Use Read when you know the specific file path you need to read
           - Use Bash ONLY for read-only operations (ls, git status, git log, git diff, find, cat, head, tail)
           - NEVER use Bash for: mkdir, touch, rm, cp, mv, git add, git commit, npm install, pip install, or any file creation/modification
@@ -189,10 +202,24 @@
           - Wherever possible you should try to spawn multiple parallel tool calls for grepping and reading files
 
           Complete the user's search request efficiently and report your findings clearly.
+
+          Subagent operating notes (ZCode subagent protocol, applied to every subagent thread):
+          - Agent threads always have their cwd reset between bash calls, as a result please only use absolute file paths.
+          - In your final response, share file paths (always absolute, never relative) that are relevant to the task. Include code snippets only when the exact text is load-bearing (e.g., a bug you found, a function signature the caller asked for) — do not recap code you merely read.
+          - For clear communication with the user the assistant MUST avoid using emojis.
+          - Do not use a colon before tool calls. Text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.
+          - Do NOT Write report/summary/findings/analysis .md files. Return findings directly as your final assistant message — the parent agent reads your text output, not files you create.
         toolFilter:
-          allow: [bash, glob, grep, read, web_fetch, web_search, todo]
+          allow: [bash, glob, grep, read, web_fetch, web_search, todo_write]
 
 # ── remaining model-facing rows ─────────────────────────────────────────────
+
+# ZCode's ReadSessionContext ("read bounded context from another persisted
+# session") maps to DSH's session-query tools: session_search across prior
+# sessions in this workspace, then session_event_search / session_trace /
+# session_event_trace / session_event_read for lineage and exact data.
+- id: tool-session-query
+  name: '@deepseek-ai/dsh-tool-session-query'
 
 - id: tool-ask-user
   name: '@deepseek-ai/dsh-tool-ask-user'
@@ -201,6 +228,12 @@
   name: '@deepseek-ai/dsh-tool-todo'
   config:
     allowParallelInProgress: true
+
+# ZCode exposes TodoRead (read-only list view) beside TodoWrite; DSH's
+# tool-todo registers only `todo_write`, so this preset-scoped row adds the
+# read-only `todo_read` view over the same `todos` projection.
+- id: tool-todo-read
+  name: '@deepseek-ai/dsh-zcode-todo'
 
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'

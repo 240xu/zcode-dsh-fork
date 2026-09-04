@@ -161,18 +161,27 @@ describe('the zcode preset on a native-addon-less boot', () => {
 
       const memory = assembly.sections.find(section => section.name === 'zcode:memory')?.text ?? ''
       expect(memory).toContain('# Persistent Agent Memory')
-      expect(memory).toContain('.zcode-agent')
+      // Scope-resolved root per resolvePersistentAgentMemoryRoot
+      // (user scope: <storageRoot>/agent-memory/<agent>)
+      expect(memory).toContain('agent-memory')
       expect(memory).not.toContain('<MEMORY_ROOT>')
+      expect(memory).not.toContain('<SCOPE_GUIDANCE>')
+      expect(memory).toContain('## MEMORY.md')
+
+      const context = assembly.sections.find(section => section.name === 'zcode:context')?.text ?? ''
+      expect(context).toContain('# Context management')
+      expect(context).toContain('When you have enough information to act, act.')
 
       const semantics = assembly.sections.find(section => section.name === 'zcode:tool-semantics')?.text ?? ''
       expect(semantics).toContain('## Read')
       expect(semantics).toContain('## Bash')
       expect(semantics).toContain('Launch a new agent to handle complex, multi-step tasks.')
+      expect(semantics).toContain('## ZCode tools mapped to DSH equivalents')
 
       const catalog = ctx.tools.schemas(handle.agent).map(schema => schema.name).sort()
       // Minus the platform-blocked executors: bash, and tool-fs-search's
       // rg-backed glob/grep pair.
-      for (const expected of ['edit', 'read', 'write']) {
+      for (const expected of ['edit', 'read', 'write', 'todo_read', 'todo_write']) {
         expect(catalog).toContain(expected)
       }
       expect(catalog).not.toContain('bash')

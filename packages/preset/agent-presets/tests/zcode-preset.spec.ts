@@ -59,6 +59,8 @@ describe('the zcode shipped preset', () => {
     expect(ids).toContain('tool-fs')
     expect(ids).toContain('tool-bash')
     expect(ids).toContain('tool-web')
+    expect(ids).toContain('tool-todo-read')
+    expect(ids).toContain('tool-session-query')
   })
 
   it('does not bundle the official ZCode runtime binary', async () => {
@@ -78,9 +80,19 @@ describe('the zcode shipped preset', () => {
     const persona = String(config?.persona ?? '')
     expect(persona).toContain('You are ZCode Explore')
     expect(persona).toContain('READ-ONLY MODE - NO FILE MODIFICATIONS')
-    // Read-only tool filter on DSH tool names
+    // ZCode Explore guideline lines from the runtime's non-embedded branch
+    expect(persona).toContain('- Use Glob for broad file pattern matching')
+    expect(persona).toContain('- Use Grep for searching file contents with regex')
+    expect(persona).toContain('- Use Read when you know the specific file path')
+    // ZCode subagent operating notes (buildSubagentCommonNotes)
+    expect(persona).toContain('Subagent operating notes (ZCode subagent protocol')
+    expect(persona).toContain('only use absolute file paths')
+    expect(persona).toContain('MUST avoid using emojis')
+    // Read-only tool filter on DSH tool names. ZCode grants Explore TodoWrite;
+    // DSH's todo tool registers as `todo_write`, so the filter must name it
+    // exactly — `todo` matches nothing and silently drops the tool.
     const filter = config?.toolFilter as Record<string, unknown> | undefined
-    expect(filter?.allow).toEqual(['bash', 'glob', 'grep', 'read', 'web_fetch', 'web_search', 'todo'])
+    expect(filter?.allow).toEqual(['bash', 'glob', 'grep', 'read', 'web_fetch', 'web_search', 'todo_write'])
   })
 
   it('carries a plan-mode section with ZCode plan semantics', async () => {

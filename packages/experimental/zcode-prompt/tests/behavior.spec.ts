@@ -56,6 +56,29 @@ describe('the tool descriptions', () => {
   })
 })
 
+describe('the context text', () => {
+  it('carries the bundle-verified Context Management anchors', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, { persona: 'test persona' })
+    await ctx.plugin(ZcodePrompt)
+
+    const assembly = await ctx.systemPrompt.assemble({})
+    const section = assembly.sections.find(s => s.name === 'zcode:context')
+    expect(section).toBeDefined()
+    // WSr.default
+    expect(section?.text).toContain('# Context management')
+    expect(section?.text).toContain('you don\'t need to wrap up early or hand off mid-task')
+    // WSr.additional autonomy guidance
+    expect(section?.text).toContain('When you have enough information to act, act.')
+    expect(section?.text).toContain('You are operating autonomously.')
+    expect(section?.text).toContain('Before ending your turn, check your last paragraph.')
+    expect(section?.text).toContain('check that the evidence actually supports that specific action')
+    // No unresolved runtime templates; size guard against swallowed source
+    expect(section?.text).not.toMatch(/\$\{[a-zA-Z]/)
+    expect(section?.text.length).toBeLessThan(5000)
+  })
+})
+
 describe('the plugin rows', () => {
   it('registers both sections into the system prompt registry', async () => {
     const ctx = new Context()
@@ -65,6 +88,7 @@ describe('the plugin rows', () => {
     const assembly = await ctx.systemPrompt.assemble({})
     const names = assembly.sections.map(section => section.name)
     expect(names).toContain('zcode:behavior')
+    expect(names).toContain('zcode:context')
     expect(names).toContain('zcode:tool-semantics')
 
     const behavior = assembly.sections.find(section => section.name === 'zcode:behavior')
@@ -73,6 +97,14 @@ describe('the plugin rows', () => {
     expect(semantics?.text).toContain('## Read')
     expect(semantics?.text).toContain('## Bash')
     expect(semantics?.text).toContain('ZCode parameter')
+    // Mapped-tool notes for ZCode tools without a DSH counterpart row
+    expect(semantics?.text).toContain('## ZCode tools mapped to DSH equivalents')
+    expect(semantics?.text).toContain('`EnterPlanMode` / `ExitPlanMode`')
+    expect(semantics?.text).toContain('`TaskOutput` is DEPRECATED')
+    expect(semantics?.text).toContain('`ApplyPatch`')
+    expect(semantics?.text).toContain('`ReadSessionContext`')
+    // Session guidance on the skill note
+    expect(semantics?.text).toContain('when the user types `/<skill-name>`, invoke it via Skill')
 
     // Size guard: the whole tool-semantics section is ~9-11 KB of curated
     // text. An unterminated string literal in the evidence extraction once
