@@ -25,6 +25,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-tools'
+import { disablePresetRow } from './zcode-preset-e2e-helpers.ts'
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const BASE_PATCH = join(REPO_ROOT, 'packages/bundle/base/cordis.patch.yml')
@@ -33,25 +34,7 @@ const INSTALL_ANCHOR = join(REPO_ROOT, 'apps/cli/package.json')
 
 let ctx: Context
 
-/** Force `disabled: true` onto one top-level preset composition row. */
-function disablePresetRow(composition: string, id: string): string {
-  const row = `- id: ${id}\n`
-  const start = composition.indexOf(row)
-  if (start < 0) throw new Error(`missing preset row ${id}`)
-  const next = composition.indexOf('\n- id:', start + row.length)
-  const end = next < 0 ? composition.length : next + 1
-  const block = composition.slice(start, end)
-  if (block.includes('disabled: true\n')) return composition
-  if (block.includes('disabled: ')) {
-    // Replace an existing disabled expression (e.g. the win32 platform gate).
-    const lineStart = block.indexOf('disabled: ')
-    const lineEnd = block.indexOf('\n', lineStart)
-    return composition.slice(0, start + lineStart)
-      + 'disabled: true'
-      + composition.slice(start + lineEnd)
-  }
-  return composition.slice(0, end) + '  disabled: true\n' + composition.slice(end)
-}
+
 
 beforeAll(async () => {
   const home = await mkdtemp(join(tmpdir(), 'zcode-smoke-'))

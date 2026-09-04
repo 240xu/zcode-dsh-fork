@@ -67,6 +67,8 @@ function toolSemanticsText(): string {
     '',
   ]
   for (const [dshName, description] of Object.entries(TOOL_DESCRIPTIONS)) {
+    // Every key is mapped today; the fallback only serves future keys.
+    /* v8 ignore next -- defensive fallback unreachable while ZCODE_NAME covers all TOOL_DESCRIPTIONS keys (locked by the roster test) */
     const zcodeName = ZCODE_NAME[dshName] ?? dshName
     blocks.push(`## ${zcodeName}`)
     blocks.push('')

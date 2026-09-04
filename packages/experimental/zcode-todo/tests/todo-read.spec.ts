@@ -93,4 +93,9 @@ describe('dsh-zcode-todo', () => {
     const result = await callTool(ctx, 'todo_read', {}, undefined)
     expect(result.isError).toBe(true)
   })
+
+  it('presents a read-kind call card', async () => {
+    const ctx = await setup()
+    expect(ctx.tools.get('todo_read')?.presentCall?.({})).toEqual({ card: 'generic', title: 'Read todo list', kind: 'read' })
+  })
 })

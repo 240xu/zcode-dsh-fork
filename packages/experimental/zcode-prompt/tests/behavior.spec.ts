@@ -5,10 +5,14 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath as fileURLToPathLib } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as ZcodePrompt from '@deepseek-ai/dsh-zcode-prompt/src/index.ts'
 import { BEHAVIOR_TEXT } from '@deepseek-ai/dsh-zcode-prompt/src/behavior-text.ts'
+import { trimFirstSentence } from '@deepseek-ai/dsh-zcode-prompt/src/behavior-text.ts'
 import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
 
 describe('the behavior text', () => {
@@ -26,6 +30,11 @@ describe('the behavior text', () => {
 
   it('does not duplicate the persona identity sentence', () => {
     expect(BEHAVIOR_TEXT.startsWith('You are an interactive ZCode agent')).toBe(false)
+  })
+
+  it('trims the identity first sentence only when present', () => {
+    expect(trimFirstSentence('You are an interactive ZCode agent that helps users with software engineering tasks.\nRest')).toBe('Rest')
+    expect(trimFirstSentence('Unrelated text')).toBe('Unrelated text')
   })
 })
 
@@ -120,5 +129,20 @@ describe('the plugin rows', () => {
       expect(description).not.toContain('"use strict"')
       expect(description).not.toContain('function ')
     }
+  })
+})
+
+const describeIfBuilt = existsSync(join(dirname(fileURLToPathLib(import.meta.url)), '..', 'lib', 'index.js'))
+  ? describe
+  : describe.skip
+describeIfBuilt('the built package entry', () => {
+  it('loads its txt assets beside lib/index.js', async () => {
+    // Same publish-shape lock as the memory package: the built entry must
+    // find identity/behavior/context txt files next to itself.
+    const built = // @ts-expect-error -- built lib/index.js ships without adjacent declarations; the cast below restores types
+    await import('../lib/index.js') as typeof import('@deepseek-ai/dsh-zcode-prompt/src/index.ts')
+    // Import success alone is the lock: the entry top-level-awaits three
+    // txt reads beside itself and rejects with ENOENT when they are absent.
+    expect(typeof built.apply).toBe('function')
   })
 })

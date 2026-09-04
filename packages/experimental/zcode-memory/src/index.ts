@@ -69,11 +69,25 @@ export function sanitizeAgentName(name: string): string {
   return clean === '' ? 'unknown' : clean
 }
 
-/** Active memory scope from `ZCODE_MEMORY_SCOPE` (default `user`). */
+/**
+ * Active memory scope from `ZCODE_MEMORY_SCOPE` (default `user`).
+ *
+ * Deployment mapping, not upstream behavior: ZCode reads the scope from the
+ * profile config, while this preset takes it from the environment. An
+ * unrecognized value falls back to `user` with a one-time startup warning
+ * rather than throwing — an import-time throw would take down the whole
+ * process boot for a typo, and ZCode itself never throws here (an unknown
+ * scope renders no guidance line).
+ */
+let warnedInvalidScope = false
 export function zcodeMemoryScope(): MemoryScope {
   const raw = (process.env.ZCODE_MEMORY_SCOPE ?? 'user').trim().toLowerCase()
   if (raw === 'user' || raw === 'project' || raw === 'local') return raw
-  throw new Error(`ZCODE_MEMORY_SCOPE must be user, project, or local (got ${JSON.stringify(process.env.ZCODE_MEMORY_SCOPE)})`)
+  if (!warnedInvalidScope) {
+    warnedInvalidScope = true
+    console.warn(`[zcode-memory] ZCODE_MEMORY_SCOPE must be user, project, or local (got ${JSON.stringify(process.env.ZCODE_MEMORY_SCOPE)}); falling back to 'user'`)
+  }
+  return 'user'
 }
 
 /**

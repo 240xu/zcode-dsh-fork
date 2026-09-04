@@ -930,24 +930,34 @@ describe('the zcode preset composition', () => {
       const persona = assembly.sections.find(section => section.name === 'deployment:persona')?.text ?? ''
       expect(persona).toContain('You are ZCode, an interactive coding agent running on DeepSeek Harness')
 
-      // All three evidence-backed zcode sections are present.
+      // All evidence-backed zcode sections are present.
       expect(names).toContain('zcode:behavior')
+      expect(names).toContain('zcode:context')
       expect(names).toContain('zcode:memory')
       expect(names).toContain('zcode:tool-semantics')
       const behavior = assembly.sections.find(section => section.name === 'zcode:behavior')?.text ?? ''
       expect(behavior).toContain('# Harness')
       expect(behavior).toContain('Your text output is what the user reads')
+      const context = assembly.sections.find(section => section.name === 'zcode:context')?.text ?? ''
+      expect(context).toContain('# Context management')
+      expect(context).toContain('When you have enough information to act, act.')
       const memory = assembly.sections.find(section => section.name === 'zcode:memory')?.text ?? ''
       expect(memory).toContain('# Persistent Agent Memory')
-      expect(memory).toContain('.zcode-agent')
+      // Scope-resolved root per resolvePersistentAgentMemoryRoot
+      // (user scope: <storageRoot>/agent-memory/<agent>)
+      expect(memory).toContain('agent-memory')
+      expect(memory).not.toContain('<MEMORY_ROOT>')
+      expect(memory).not.toContain('<SCOPE_GUIDANCE>')
+      expect(memory).toContain('## MEMORY.md')
       const semantics = assembly.sections.find(section => section.name === 'zcode:tool-semantics')?.text ?? ''
       expect(semantics).toContain('## Read')
       expect(semantics).toContain('## Bash')
       expect(semantics).toContain('Launch a new agent to handle complex, multi-step tasks.')
+      expect(semantics).toContain('## ZCode tools mapped to DSH equivalents')
 
       // DSH's own tool catalog composes underneath the ZCode semantics.
       const catalog = toolNames(ctx, handle.agent)
-      for (const expected of ['bash', 'edit', 'glob', 'grep', 'read', 'write']) {
+      for (const expected of ['bash', 'edit', 'glob', 'grep', 'read', 'write', 'todo_read', 'todo_write']) {
         expect(catalog).toContain(expected)
       }
       // The Explore subagent tool and its ZCode persona row are present.

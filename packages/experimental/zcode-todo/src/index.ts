@@ -15,7 +15,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-session-projection'
-import type { TodoItem } from '@deepseek-ai/dsh-tool-todo/src/types.ts'
+import type { TodoItem } from '@deepseek-ai/dsh-tool-todo'
 
 export const inject = ['tools', 'sessionProjections']
 

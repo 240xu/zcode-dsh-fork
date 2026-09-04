@@ -20,8 +20,8 @@ const identityText = await readFile(join(here, 'identity-section.txt'), 'utf8')
 /** The dynamic-behavior section: communicating with the user, code style, comment policy, risk policy. */
 const dynamicText = await readFile(join(here, 'dynamic-behavior.txt'), 'utf8')
 
-function trimFirstSentence(text: string): string {
-  const first = 'You are an interactive ZCode agent that helps users with software engineering tasks.'
+/** Strip the identity file's first sentence (the preset persona states it); exported for unit tests. */
+export function trimFirstSentence(text: string): string {  const first = 'You are an interactive ZCode agent that helps users with software engineering tasks.'
   const rest = text.trim().startsWith(first) ? text.trim().slice(first.length) : text
   return rest.replace(/^\s+/, '')
 }
