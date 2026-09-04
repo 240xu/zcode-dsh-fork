@@ -6624,6 +6624,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:^
         version: link:../../typert/protocol
+      '@deepseek-ai/dsh-zcode-prompt':
+        specifier: workspace:^
+        version: link:../../experimental/zcode-prompt
 
   packages/preset/persona:
     dependencies:

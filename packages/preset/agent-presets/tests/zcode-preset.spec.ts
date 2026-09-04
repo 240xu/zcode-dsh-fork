@@ -13,6 +13,7 @@ import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { SHIPPED_PRESET_ROOT } from '@deepseek-ai/dsh-agent-presets'
+import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
 
 interface CompositionEntry {
   id?: unknown
@@ -93,6 +94,27 @@ describe('the zcode shipped preset', () => {
     // exactly — `todo` matches nothing and silently drops the tool.
     const filter = config?.toolFilter as Record<string, unknown> | undefined
     expect(filter?.allow).toEqual(['bash', 'glob', 'grep', 'read', 'web_fetch', 'web_search', 'todo_write'])
+  })
+
+  it('renders the AGENT_PROFILES slot as this preset’s actual subagent roster', async () => {
+    // ZCode renders the live ROr profiles slot at assembly; the DSH port
+    // renders this preset's real roster in the same ROr shape. This locks
+    // the two together: adding/removing a subagent row must update the text.
+    const entries = await zcodeEntries()
+    const explore = findEntry(entries, 'tool-subagent-explore')
+    const config = explore?.config as Record<string, unknown> | undefined
+    const toolName = String(config?.toolName ?? '')
+    const allow = (config?.toolFilter as Record<string, unknown> | undefined)?.allow as unknown
+    expect(Array.isArray(allow)).toBe(true)
+    for (const key of ['agent', 'task'] as const) {
+      const text = TOOL_DESCRIPTIONS[key] ?? ''
+      expect(text).not.toContain('{AGENT_PROFILES}')
+      expect(text).toContain('Available agent types and the tools they have access to:')
+      expect(text).toContain(`- ${toolName}:`)
+      for (const tool of allow as string[]) {
+        expect(text).toContain(tool)
+      }
+    }
   })
 
   it('carries a plan-mode section with ZCode plan semantics', async () => {
