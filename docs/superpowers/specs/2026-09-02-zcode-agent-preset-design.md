@@ -222,3 +222,44 @@ dsh session (--preset zcode)
 - [ ] Memory 三 scope 读写正常。
 - [ ] 现有 preset 回归全绿。
 - [ ] 官方 zcode.cjs runtime 不进入任何交付物（复核：交付物中无 vendor/zcode.cjs、无其派生二进制）。
+
+---
+
+## 10. 等价性决议（严格等效：不降级、不偏移）
+
+对抗审查（2026-09-04，三镜头 R1+R2，报告见工作区外
+`adversarial-review-zcode-preset.md`）提出的问题中，凡修法本身会偏离上游
+行为的，一律**保持上游行为、锁定并记录**，不做“比上游更正确”的修改。
+只有上游本就有而移植缺失的，才补实现。
+
+### 10.1 保持上游行为（有意不修，测试锁定）
+
+| # | 现象 | 上游事实 | 决议 |
+|---|---|---|---|
+| B1 | Explore persona 称只读却授 Bash | 上游 `i8` 列表即授 Explore Bash（`buildExploreAgentPrompt` @10351692，`i8=["Bash","Glob",...]`）；persona 原文同样 READ-ONLY。张力上游本有 | 保留 Bash；persona 逐字上游。测试锁定 filter 内容 |
+| B3 | MEMORY.md 索引逐字进 system prompt，无不可信分隔 | 上游 `K9r` 即原文拼接（@10831308），无 delimiter。加分隔符会改变模型所见文本 = 偏移 | 保留逐字；不加护栏。`verify-before-recommend` 原文即上游的缓解 |
+| A1 | `replaceAll('<MEMORY_ROOT>', root)` 解释 `$` 模式 | 上游 `Isi.replace("<MEMORY_ROOT>/", t)` 同为字符串替换，同行为 | 保留；文档注明 |
+| A2 | 25KB 上限按 `.length`（UTF-16 码元）而非字节计量 | 上游 `Wut` 即 `t.length`/`mre=25e3`（@7728397），名 bytes 实 chars | 保留；常量名沿用上游（`MEMORY_INDEX_MAX_BYTES` 即 `mre`） |
+| A5/C5 | 读失败全吞为“空索引”（含 EACCES/ENOTDIR） | 上游 `X9r` 的 `try{...}catch{}` 同样全吞（@10846081） | 保留；单测锁定 ENOTDIR 路径 |
+| B2 | Explore 的 `todo_write`（已挡回） | 子 session 隔离，写不到父计划；上游 i8 本就授 TodoWrite | 保留（隔离 scratchpad）；注释正名理由 |
+
+### 10.2 已补的缺失（上游有、移植缺）
+
+- `{AGENT_PROFILES}`：上游 `ROr` 渲染实时 profiles 列表（@10360192，
+  `- <name>: <desc> (Tools: ...)` 形）。移植渲染本 preset 实际 roster
+  （Explore 一行），与组合子代理行由 preset 单测锁定同步。
+- `todo_read`：上游 TodoRead/TodoWrite 双工具；DSH 只有 `todo_write`。
+  新增 preset 内只读视图（同 `todos` 投影，零新状态）。
+- `session-query` 挂载：上游 ReadSessionContext 等价（P2 缺口关闭）。
+- `zcode:context` section：上游 `WSr` 自主准则此前未移植。
+- Scope 指引/目录约定/索引组装：按 `Tsi/Asi/K9r/B1e` 实现（此前三处提取
+  artifact 已修正，memory 全文与 `Isi` 字节一致）。
+
+### 10.3 已知非等效（诚实记录）
+
+- DSH 权限是 host 级（`DSH_PERMISSION_MODE`），ZCode 四模式无逐项对应：
+  build≈workspace-write、yolo≈danger-full-access、plan=行、edit 无等价、
+  auto=DSH 自身机制。见组合注释。
+- DSH `MEMORY_PROMPT` 导出是 import 期快照（测试/检视用），生产路径是
+  `apply()` 闭包实时渲染；`ZCODE_MEMORY_SCOPE` 非法值 fallback+警告（上游
+  以 profile 诊断拒绝，本 preset 无该管线，崩溃不如降级）。
