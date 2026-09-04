@@ -73,5 +73,20 @@ describe('the plugin rows', () => {
     expect(semantics?.text).toContain('## Read')
     expect(semantics?.text).toContain('## Bash')
     expect(semantics?.text).toContain('ZCode parameter')
+
+    // Size guard: the whole tool-semantics section is ~9-11 KB of curated
+    // text. An unterminated string literal in the evidence extraction once
+    // silently embedded megabytes of the bundled runtime source here, which
+    // no existence-based assertion catches. Both sections must stay far
+    // below any threshold that could indicate swallowed source code.
+    const totalSemantics = semantics?.text.length ?? 0
+    const totalBehavior = behavior?.text.length ?? 0
+    expect(totalSemantics).toBeLessThan(20_000)
+    expect(totalBehavior).toBeLessThan(20_000)
+    for (const description of Object.values(TOOL_DESCRIPTIONS)) {
+      expect(description.length).toBeLessThan(4_000)
+      expect(description).not.toContain('"use strict"')
+      expect(description).not.toContain('function ')
+    }
   })
 })
