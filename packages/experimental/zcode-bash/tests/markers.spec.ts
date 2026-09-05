@@ -1,7 +1,7 @@
 /** Pure marker-helper tests for dsh-zcode-bash (no executor needed). */
 
 import { describe, expect, it } from 'vitest'
-import { appendResetSuffix, cleanStdout, insideWorkspace, markerPrefix, markerSuffix, parseCwdMarker, renderForegroundResult, renderStderr, stripMarkerLines, wrapWithCwdMarker } from '../src/index.ts'
+import { appendResetSuffix, cleanStdout, insideWorkspace, markerPrefix, markerSuffix, parseCwdMarker, renderForegroundResult, renderStderr, resolveTimeoutMs, stripMarkerLines, wrapWithCwdMarker, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS } from '../src/index.ts'
 
 describe('zcode-bash markers', () => {
   it('wrap/parse round-trip', () => {
@@ -63,5 +63,14 @@ describe('zcode-bash workspace boundary', () => {
   it('appendResetSuffix strips trailing newlines before joining', () => {
     expect(appendResetSuffix('', 'Shell cwd was reset to /w')).toBe('Shell cwd was reset to /w')
     expect(appendResetSuffix('oops\n\n', 'Shell cwd was reset to /w')).toBe('oops\nShell cwd was reset to /w')
+  })
+})
+
+describe('zcode-bash timeout policy', () => {
+  it('resolveTimeoutMs falls back on falsy input and caps at the max', () => {
+    expect(resolveTimeoutMs(undefined)).toBe(ZCODE_BASH_DEFAULT_TIMEOUT_MS)
+    expect(resolveTimeoutMs(0)).toBe(ZCODE_BASH_DEFAULT_TIMEOUT_MS)
+    expect(resolveTimeoutMs(50)).toBe(50)
+    expect(resolveTimeoutMs(999_999_999)).toBe(ZCODE_BASH_MAX_TIMEOUT_MS)
   })
 })

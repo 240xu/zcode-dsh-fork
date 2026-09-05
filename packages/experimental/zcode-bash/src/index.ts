@@ -23,9 +23,9 @@
  * - The shell is `bash -c` via the deployment's executor, not a login
  *   shell: upstream initializes from the user profile, which the seam does
  *   not offer. Behavior differs only for profile-customized environments.
- * - `dangerouslyDisableSandbox: true` fails loudly: DSH sandboxing is
- *   host-controlled and no tool may self-escalate. A silent ignore would
- *   lie to the model about confinement.
+ * - `dangerouslyDisableSandbox` is accepted without tool-level effect
+ *   (confinement stays host-controlled), matching the oracle's runs.
+ *   An empty command runs and renders `(Bash completed with no output)`.
  * @module @deepseek-ai/dsh-zcode-bash
  */
 
@@ -35,7 +35,6 @@ import { isAbsolute, relative, sep } from 'node:path'
 import { realpathSync } from 'node:fs'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ShellProcess } from '@deepseek-ai/dsh-shell'
-import { clampTimeout } from '@deepseek-ai/dsh-timeout'
 import { processOutcome } from '@deepseek-ai/dsh-tool-bash/src/background.ts'
 import { renderProcessRead } from '@deepseek-ai/dsh-tool-bash/src/render.ts'
 import { TOOL_ABORTED, defineTool } from '@deepseek-ai/dsh-tools'
@@ -49,6 +48,16 @@ export const inject = ['tools', 'shell', 'shellEnv', 'systemPrompt'] as const
 /** ZCode bash timeouts: default 120000ms, cap 600000ms, per-call override. */
 export const ZCODE_BASH_DEFAULT_TIMEOUT_MS = 120_000
 export const ZCODE_BASH_MAX_TIMEOUT_MS = 600_000
+
+/**
+ * Oracle timeout rule (resolveBashTimeoutMs): a falsy timeout (absent,
+ * zero) falls back to the default; anything higher is capped at the max.
+ * Never an error. (Negative values are truthy — their live effect is
+ * still under probe; currently they flow through like the oracle.)
+ */
+export function resolveTimeoutMs(timeout: number | undefined): number {
+  return Math.min(timeout || ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS)
+}
 
 /** Session working directories, keyed by live session object (no leaks). */
 const sessionCwd = new WeakMap<object, string>()
@@ -219,26 +228,26 @@ export function apply(ctx: Context): void {
           // background starts with its own wording; this ack is interim.
           return [{ type: 'text', text: `started background job ${value.backgroundTaskId}` }]
         }
-        // The oracle's timeout line carries the effective (clamped) timeout.
-        const effectiveTimeoutMs = clampTimeout(
-          (args as ZcodeBashArgs).timeout, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS, 'timeout',
-        )
+        // The oracle's timeout line carries the effective timeout.
+        const effectiveTimeoutMs = resolveTimeoutMs((args as ZcodeBashArgs).timeout)
         const text = renderForegroundResult(value.stdout, value.stderr, { status: value.status, exitCode: value.exitCode, timeoutMs: effectiveTimeoutMs })
-        return [{ type: 'text', text }]
+        // Oracle presentation rule: wholly empty content renders a
+        // parenthetical naming the ZCode-side tool.
+        return [{ type: 'text', text: text === '' ? '(Bash completed with no output)' : text }]
       },
     },
     async execute(args: ZcodeBashArgs, exec) {
+      // Oracle behavior, confirmed live: an empty/whitespace command
+      // short-circuits to completed-empty without spawning (its empty
+      // output renders `(Bash completed with no output)`), and
+      // dangerouslyDisableSandbox is accepted without effect at the tool
+      // layer — confinement stays host-controlled, exactly as in the
+      // oracle's yolo runs. Neither is an error.
+      void args.dangerouslyDisableSandbox
       if (args.command.trim().length === 0) {
-        throw new Error('invalid command: expected a non-empty string')
+        return { kind: 'foreground' as const, stdout: '', stderr: '', status: 'completed' as const, exitCode: 0, timedOut: false }
       }
-      if (args.dangerouslyDisableSandbox === true) {
-        throw new Error(
-          'dangerouslyDisableSandbox is not available in this deployment: sandboxing is host-controlled '
-          + '(DSH_PERMISSION_MODE); no tool may lift its own confinement. '
-          + 'Request a wider mode from the user instead.',
-        )
-      }
-      const timeoutMs = clampTimeout(args.timeout, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS, 'timeout')
+      const timeoutMs = resolveTimeoutMs(args.timeout)
       const agent = exec.agent as Agent | undefined
       const session = agent?.session as { header: { cwd?: string } } | undefined
       const tracked = (session !== undefined ? sessionCwd.get(session) : undefined)

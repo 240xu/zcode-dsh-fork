@@ -218,30 +218,33 @@ describe('dsh-zcode-bash', () => {
     expect(text(result)).toBe('Command timed out after 50ms\n<error>Command was aborted before completion</error>')
   })
 
-  it('timeout: non-positive values are rejected', async () => {
+  it('timeout: zero falls back to the default and runs', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'timeout-2')
-    const result = await call(ctx, 'bash', { command: 'echo x', description: 'bad timeout', timeout: -5 }, agent)
-    expect(result.isError).toBe(true)
+    const result = await call(ctx, 'bash', { command: 'echo zero-ok', description: 'zero timeout', timeout: 0 }, agent)
+    const value = valueOf(result) as { status: string }
+    expect(value).toMatchObject({ kind: 'foreground', status: 'completed' })
+    expect(text(result)).toBe('zero-ok')
   })
 
-  it('dangerouslyDisableSandbox fails loudly instead of silently ignoring confinement', async () => {
+  it('dangerouslyDisableSandbox is accepted without tool-level effect', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'sandbox-1')
     const result = await call(
       ctx,
       'bash',
-      { command: 'echo x', description: 'escalate', dangerouslyDisableSandbox: true },
+      { command: 'echo sandbox-probe', description: 'sandbox flag', dangerouslyDisableSandbox: true },
       agent,
     )
-    expect(result.isError).toBe(true)
-    expect(text(result)).toContain('DSH_PERMISSION_MODE')
+    expect(valueOf(result)).toMatchObject({ kind: 'foreground', status: 'completed' })
+    expect(text(result)).toBe('sandbox-probe')
   })
 
-  it('empty commands are rejected', async () => {
+  it('empty commands run and render the no-output parenthetical', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'empty-1')
     const result = await call(ctx, 'bash', { command: '   ', description: 'nothing' }, agent)
-    expect(result.isError).toBe(true)
+    expect(valueOf(result)).toMatchObject({ kind: 'foreground', status: 'completed' })
+    expect(text(result)).toBe('(Bash completed with no output)')
   })
 })

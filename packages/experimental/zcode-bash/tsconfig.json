@@ -18,7 +18,6 @@
     { "path": "../../shell/shell" },
     { "path": "../../shell/shell-env" },
     { "path": "../../shell/tool-bash" },
-    { "path": "../../util/timeout" },
     { "path": "../zcode-prompt" }
   ]
 }
