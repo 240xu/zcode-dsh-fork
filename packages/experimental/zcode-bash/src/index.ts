@@ -20,9 +20,10 @@
  *   tracking untouched. Subagent sessions track their own cwd; their
  *   persona still mandates absolute paths.
  * - env/functions do not persist (fresh process per call, as upstream).
- * - The shell is `bash -c` via the deployment's executor, not a login
- *   shell: upstream initializes from the user profile, which the seam does
- *   not offer. Behavior differs only for profile-customized environments.
+ * - The shell is `bash -c` via the deployment's executor: oracle probes
+ *   show NONLOGIN with no profile/bashrc sourcing, which the seam
+ *   matches exactly. HOME propagates from the host environment on both
+ *   sides (values differ by deployment, same mechanism).
  * - `dangerouslyDisableSandbox` is accepted without tool-level effect
  *   (confinement stays host-controlled), matching the oracle's runs.
  *   An empty command runs and renders `(Bash completed with no output)`.
