@@ -209,14 +209,20 @@ export function apply(ctx: Context): void {
           ...agent !== undefined ? { owner: agent } : {},
           run: () => {
             const proc: ShellProcess = ctx.shell.start(ctx.shell.resolve(request))
+            // Background cwd tracking rides on the consumed deltas: reads
+            // are consuming by contract (dsh-shell types.ts), so `done`
+            // must never call readOutput() itself — that would eat the
+            // model's output. The marker is parsed from the accumulated
+            // stream instead; output the agent never collects leaves no
+            // marker behind, and then the cwd simply stays untracked.
+            let seen = ''
             return {
               cancel: () => void proc.kill(),
-              done: proc.done.then(() => {
-                remember(proc.readOutput().delta)
-                return processOutcome(proc)
-              }),
+              done: proc.done.then(() => processOutcome(proc)),
               readOutput: () => {
                 const read = proc.readOutput()
+                seen += read.delta
+                remember(seen)
                 return renderProcessRead({ ...read, delta: stripMarkerLines(read.delta) }, proc.sandbox, [])
               },
             }

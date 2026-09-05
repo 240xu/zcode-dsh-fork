@@ -93,11 +93,12 @@ async function callUntilText(
   args: unknown,
   expected: string,
   timeoutMs = 10_000,
+  agent?: Agent,
 ): Promise<Awaited<ReturnType<typeof call>>> {
   const deadline = Date.now() + timeoutMs
   let last: Awaited<ReturnType<typeof call>> | undefined
   while (Date.now() < deadline) {
-    last = await call(ctx, name, args)
+    last = await call(ctx, name, args, agent)
     if (text(last).includes(expected)) return last
     await new Promise(resolve => setTimeout(resolve, 20))
   }
@@ -147,6 +148,39 @@ describe('dsh-zcode-bash', () => {
     expect(text(read)).toContain('bg-ok')
     const done = await callUntilText(ctx, 'job_output', { job_id: id }, '[status: completed, exit code: 0]')
     expect(text(done)).toContain('[status: completed, exit code: 0]')
+  })
+
+  it('background: a collected background cd updates the session cwd without eating output', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'bg-cwd')
+    const subdir = join(workRoot, 'subdir')
+    const started = await call(
+      ctx,
+      'bash',
+      { command: `cd ${subdir} && echo moved`, description: 'move in background', run_in_background: true },
+      agent,
+    )
+    const id = (valueOf(started) as { backgroundTaskId: string }).backgroundTaskId
+    const done = await callUntilText(ctx, 'job_output', { job_id: id }, '[status: completed, exit code: 0]', 10_000, agent)
+    expect(text(done)).toContain('moved')
+    const pwd = await call(ctx, 'bash', { command: 'pwd', description: 'where now' }, agent)
+    expect((valueOf(pwd) as { stdout: string }).stdout.trim()).toBe(subdir)
+  })
+
+  it('background: a job started by an agent is owned by that agent', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'sess-owner')
+    const started = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true }, agent)
+    expect(text(started)).toMatch(/started background job bash-\d+/)
+    const id = (valueOf(started) as { backgroundTaskId: string }).backgroundTaskId
+
+    const anon = await call(ctx, 'job_output', { job_id: id })
+    expect(anon.isError).toBe(true)
+    expect(text(anon)).toMatch(/belongs to another session/)
+
+    const killed = await call(ctx, 'job_kill', { job_id: id }, agent)
+    expect(killed.isError).toBe(false)
+    await call(ctx, 'job_output', { job_id: id, wait: true }, agent) // await settlement — no orphan
   })
 
   it('timeout: an over-long command reports timed_out instead of hanging', async () => {
