@@ -31,7 +31,9 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { isAbsolute, relative, sep } from 'node:path'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join, relative, sep } from 'node:path'
 import { realpathSync } from 'node:fs'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ShellProcess } from '@deepseek-ai/dsh-shell'
@@ -83,6 +85,27 @@ export function insideWorkspace(resolvedCwd: string, workspaceRoot: string): boo
   })
 }
 
+/**
+ * Oracle auto-background eligibility (isBashAutoBackgroundEligible):
+ * a foreground command may be moved to the background on timeout unless
+ * it is empty or its first whitespace-separated word is `sleep`.
+ */
+export function isAutoBackgroundEligible(command: string): boolean {
+  const trimmed = command.trim()
+  if (trimmed.length === 0) return false
+  return trimmed.split(/\s+/u)[0] !== 'sleep'
+}
+
+/**
+ * Oracle-adapted background ack (third oPr variant). The id and the
+ * collection channel are ours (DSH jobs keep output in-memory, read via
+ * job_output — there is no output file), the shape mirrors the oracle:
+ * id, notification promise, interim-output pointer.
+ */
+export function renderBackgroundAck(backgroundTaskId: string): string {
+  return `Command running in background with ID: ${backgroundTaskId}. You will be notified when it completes. To check interim output, use job_output.`
+}
+
 /** Oracle suffix join: strip trailing newlines, then append the suffix. */
 export function appendResetSuffix(stderrText: string, suffix: string): string {
   const stripped = stderrText.replace(/[\r\n]+$/, '')
@@ -101,6 +124,27 @@ export function markerSuffix(): string {
 /** Wrap a command so the shell reports its end-of-command directory. */
 export function wrapWithCwdMarker(command: string, token: string): string {
   return `{ ${command}\n}\n__ZCODE_STATUS__=$?\nprintf '\\n${markerPrefix(token)}%s${markerSuffix()}\\n' "$PWD"\nexit $__ZCODE_STATUS__`
+}
+
+/**
+ * Start-path variant: stderr is diverted to a file so the incremental
+ * mixed delta never has to be split back into streams. The marker still
+ * travels on stdout; the exit code is preserved.
+ */
+export function wrapWithCwdMarkerAndStderrFile(command: string, token: string, stderrPath: string): string {
+  const quoted = `'${stderrPath.replace(/'/g, `'\\''`)}'`
+  return `{ ${command}\n} 2> ${quoted}\n__ZCODE_STATUS__=$?\nprintf '\\n${markerPrefix(token)}%s${markerSuffix()}\\n' "$PWD"\nexit $__ZCODE_STATUS__`
+}
+
+/** Allocate a scratch stderr file; callers own cleanup via removeStderrFile. */
+export function makeStderrFile(): { dir: string; file: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'zcode-bash-'))
+  return { dir, file: join(dir, 'stderr.log') }
+}
+
+/** Best-effort removal of a scratch stderr allocation. */
+export function removeStderrFile(dir: string): void {
+  rmSync(dir, { force: true, recursive: true })
 }
 
 export interface ParsedCwdResult {
@@ -224,9 +268,7 @@ export function apply(ctx: Context): void {
       },
       render: (args, value) => {
         if (value.kind === 'background') {
-          // UNKNOWN (oracle background probe pending): the oracle reports
-          // background starts with its own wording; this ack is interim.
-          return [{ type: 'text', text: `started background job ${value.backgroundTaskId}` }]
+          return [{ type: 'text', text: renderBackgroundAck(value.backgroundTaskId) }]
         }
         // The oracle's timeout line carries the effective timeout.
         const effectiveTimeoutMs = resolveTimeoutMs((args as ZcodeBashArgs).timeout)
@@ -247,7 +289,6 @@ export function apply(ctx: Context): void {
       if (args.command.trim().length === 0) {
         return { kind: 'foreground' as const, stdout: '', stderr: '', status: 'completed' as const, exitCode: 0, timedOut: false }
       }
-      const timeoutMs = resolveTimeoutMs(args.timeout)
       const agent = exec.agent as Agent | undefined
       const session = agent?.session as { header: { cwd?: string } } | undefined
       const tracked = (session !== undefined ? sessionCwd.get(session) : undefined)
@@ -261,7 +302,6 @@ export function apply(ctx: Context): void {
       const request = {
         command: script,
         workdir: tracked,
-        timeoutMs,
         dshEnv,
         ...standingPolicy !== undefined ? { sandboxPolicy: standingPolicy } : {},
       }
@@ -284,62 +324,157 @@ export function apply(ctx: Context): void {
         sessionCwd.set(session, root)
         return `Shell cwd was reset to ${root}`
       }
+      const abortError = (): Error => {
+        const error = new HarnessError('tool call aborted', TOOL_ABORTED)
+        error.name = 'AbortError'
+        return error
+      }
+      // Shared jobs-registry adapter for a live process. Background
+      // completions never move session cwd (oracle: captureCwdAfterSuccess
+      // is set for foreground only); the marker is stripped so model text
+      // stays clean. Reads are consuming by contract, so `done` must
+      // never read — that would eat the model's output. When stderr was
+      // diverted to a file at spawn, new file bytes are appended as an
+      // [stderr] section, mirroring the executor's mixed-delta shape.
+      const wrapJobRun = (proc: ShellProcess, stderrDir?: string, stderrFile?: string): { cancel: () => void; done: Promise<{ status: 'completed' | 'killed'; detail: string }>; readOutput: () => ReturnType<typeof renderProcessRead> } => {
+        let errOffset = 0
+        if (stderrDir !== undefined) {
+          void proc.done.then(() => removeStderrFile(stderrDir))
+        }
+        return {
+          cancel: () => void proc.kill(),
+          done: proc.done.then(() => processOutcome(proc)),
+          readOutput: () => {
+            const read = proc.readOutput()
+            let delta = stripMarkerLines(read.delta)
+            if (stderrFile !== undefined) {
+              let errBytes = ''
+              try {
+                errBytes = readFileSync(stderrFile, 'utf8').slice(errOffset)
+                errOffset += errBytes.length
+              } catch {
+                errBytes = ''
+              }
+              if (errBytes.length > 0) {
+                if (delta.length > 0 && !delta.endsWith('\n')) delta += '\n'
+                delta += `[stderr]\n${errBytes}`
+              }
+            }
+            return renderProcessRead({ ...read, delta }, proc.sandbox, [])
+          },
+        }
+      }
       if (args.run_in_background === true) {
         const jobs = ctx.get('jobs')
         if (jobs === undefined) {
           throw new Error('background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs')
         }
-        if (exec.signal.aborted) {
-          const error = new HarnessError('tool call aborted', TOOL_ABORTED)
-          error.name = 'AbortError'
-          throw error
-        }
+        if (exec.signal.aborted) throw abortError()
         const id = jobs.start({
           kind: 'bash',
           label: args.command,
           ...agent !== undefined ? { owner: agent } : {},
           run: () => {
-            const proc: ShellProcess = ctx.shell.start(ctx.shell.resolve(request))
-            // Background cwd tracking rides on the consumed deltas: reads
-            // are consuming by contract (dsh-shell types.ts), so `done`
-            // must never call readOutput() itself — that would eat the
-            // model's output. The marker is parsed from the accumulated
-            // stream instead; output the agent never collects leaves no
-            // marker behind, and then the cwd simply stays untracked.
-            let seen = ''
-            let suffixDelivered = false
-            return {
-              cancel: () => void proc.kill(),
-              done: proc.done.then(() => processOutcome(proc)),
-              readOutput: () => {
-                const read = proc.readOutput()
-                seen += read.delta
-                // Policy re-evaluates on every read: interim reads see no
-                // marker (it prints last) and a running process is not yet
-                // successful, so only settled-successful output moves
-                // tracking — mirroring the oracle's completed+exit-0 gate.
-                const suffix = applyCwdPolicy(
-                  parseCwdMarker(seen, token).cwd,
-                  proc.status === 'completed' && proc.exitCode === 0,
-                )
-                let delta = stripMarkerLines(read.delta)
-                if (suffix !== undefined && !suffixDelivered) {
-                  suffixDelivered = true
-                  delta = appendResetSuffix(delta, suffix)
-                }
-                return renderProcessRead({ ...read, delta }, proc.sandbox, [])
-              },
-            }
+            const err = makeStderrFile()
+            const proc = ctx.shell.start(ctx.shell.resolve({
+              command: wrapWithCwdMarkerAndStderrFile(args.command, token, err.file),
+              workdir: tracked,
+              ...standingPolicy !== undefined ? { sandboxPolicy: standingPolicy } : {},
+              dshEnv,
+            }))
+            return wrapJobRun(proc, err.dir, err.file)
           },
         })
         return { kind: 'background' as const, backgroundTaskId: String(id) }
       }
-      const result = await ctx.shell.run(ctx.shell.resolve({ ...request, signal: exec.signal }))
-      if (result.aborted) {
-        const error = new HarnessError('tool call aborted', TOOL_ABORTED)
-        error.name = 'AbortError'
-        throw error
+      // Oracle timeout routing (resolveBashTimeoutMs + background machine):
+      // falsy -> default; non-positive -> plain foreground run with no
+      // timer; eligible + positive + lifecycle available -> foreground
+      // deadline that backgrounds instead of killing; otherwise a plain
+      // killing run. Eligibility mirrors the oracle exactly (non-empty,
+      // first word is not `sleep`).
+      const rawTimeout = args.timeout || ZCODE_BASH_DEFAULT_TIMEOUT_MS
+      const startForeground = async (err: { dir: string; file: string }, deadlineMs: number | undefined): Promise<{ kind: 'foreground'; stdout: string; stderr: string; status: 'completed' | 'failed' | 'timed_out'; exitCode: number | null; timedOut: boolean } | { kind: 'background'; backgroundTaskId: string }> => {
+        const proc: ShellProcess = ctx.shell.start(ctx.shell.resolve({
+          command: wrapWithCwdMarkerAndStderrFile(args.command, token, err.file),
+          workdir: tracked,
+          ...standingPolicy !== undefined ? { sandboxPolicy: standingPolicy } : {},
+          dshEnv,
+        }))
+        const outcome = await new Promise<'done' | 'timeout' | 'aborted'>((resolve) => {
+          let settled = false
+          const settle = (which: 'done' | 'timeout' | 'aborted'): void => {
+            if (settled) return
+            settled = true
+            cleanup()
+            resolve(which)
+          }
+          const timer = deadlineMs !== undefined ? setTimeout(() => settle('timeout'), deadlineMs) : undefined
+          const onAbort = (): void => settle('aborted')
+          const cleanup = (): void => {
+            if (timer !== undefined) clearTimeout(timer)
+            exec.signal.removeEventListener('abort', onAbort)
+          }
+          if (exec.signal.aborted) settle('aborted')
+          else exec.signal.addEventListener('abort', onAbort, { once: true })
+          void proc.done.then(() => settle('done'))
+        })
+        if (outcome === 'aborted') {
+          proc.kill()
+          removeStderrFile(err.dir)
+          throw abortError()
+        }
+        if (outcome === 'timeout') {
+          // Foreground deadline: the process keeps running under the jobs
+          // registry instead of being killed — exactly like the oracle.
+          const jobs = ctx.get('jobs')
+          if (jobs === undefined) {
+            // No lifecycle available: plain killing run, like the oracle.
+            proc.kill()
+            await proc.done
+            const parsedKill = parseCwdMarker(proc.readOutput().delta, token)
+            let killStderr = ''
+            try {
+              killStderr = readFileSync(err.file, 'utf8')
+            } catch {
+              killStderr = ''
+            }
+            removeStderrFile(err.dir)
+            return { kind: 'foreground' as const, stdout: parsedKill.output, stderr: killStderr, status: 'timed_out' as const, exitCode: null, timedOut: true }
+          }
+          const id = jobs.start({
+            kind: 'bash',
+            label: args.command,
+            ...agent !== undefined ? { owner: agent } : {},
+            run: () => wrapJobRun(proc, err.dir, err.file),
+          })
+          return { kind: 'background' as const, backgroundTaskId: String(id) }
+        }
+        const parsed = parseCwdMarker(proc.readOutput().delta, token)
+        const successful = proc.status === 'completed' && proc.exitCode === 0
+        const suffix = applyCwdPolicy(parsed.cwd, successful)
+        let stderrText: string
+        try {
+          stderrText = readFileSync(err.file, 'utf8')
+        } catch {
+          stderrText = ''
+        }
+        removeStderrFile(err.dir)
+        if (suffix !== undefined) stderrText = appendResetSuffix(stderrText, suffix)
+        const status = (proc.status !== 'completed' ? 'failed' : proc.exitCode !== 0 ? 'failed' : 'completed') as 'completed' | 'failed' | 'timed_out'
+        return { kind: 'foreground' as const, stdout: parsed.output, stderr: stderrText, status, exitCode: proc.exitCode, timedOut: false }
       }
+      if (rawTimeout <= 0) {
+        // No timer (oracle): plain foreground run over the start seam.
+        return await startForeground(makeStderrFile(), undefined)
+      }
+      const timeoutMs = Math.min(rawTimeout, ZCODE_BASH_MAX_TIMEOUT_MS)
+      const jobsAvailable = ctx.get('jobs') !== undefined
+      if (isAutoBackgroundEligible(args.command) && jobsAvailable) {
+        return await startForeground(makeStderrFile(), timeoutMs)
+      }
+      const result = await ctx.shell.run(ctx.shell.resolve({ ...request, timeoutMs, signal: exec.signal }))
+      if (result.aborted) throw abortError()
       const parsed = parseCwdMarker(result.stdout.text, token)
       const status = (result.timedOut ? 'timed_out' : result.exitCode !== 0 ? 'failed' : 'completed') as 'completed' | 'failed' | 'timed_out'
       const suffix = applyCwdPolicy(parsed.cwd, status === 'completed')

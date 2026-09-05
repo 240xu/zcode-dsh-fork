@@ -1,7 +1,7 @@
 /** Pure marker-helper tests for dsh-zcode-bash (no executor needed). */
 
 import { describe, expect, it } from 'vitest'
-import { appendResetSuffix, cleanStdout, insideWorkspace, markerPrefix, markerSuffix, parseCwdMarker, renderForegroundResult, renderStderr, resolveTimeoutMs, stripMarkerLines, wrapWithCwdMarker, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS } from '../src/index.ts'
+import { appendResetSuffix, cleanStdout, insideWorkspace, isAutoBackgroundEligible, markerPrefix, markerSuffix, parseCwdMarker, renderBackgroundAck, renderForegroundResult, renderStderr, resolveTimeoutMs, stripMarkerLines, wrapWithCwdMarker, wrapWithCwdMarkerAndStderrFile, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS } from '../src/index.ts'
 
 describe('zcode-bash markers', () => {
   it('wrap/parse round-trip', () => {
@@ -72,5 +72,30 @@ describe('zcode-bash timeout policy', () => {
     expect(resolveTimeoutMs(0)).toBe(ZCODE_BASH_DEFAULT_TIMEOUT_MS)
     expect(resolveTimeoutMs(50)).toBe(50)
     expect(resolveTimeoutMs(999_999_999)).toBe(ZCODE_BASH_MAX_TIMEOUT_MS)
+  })
+})
+
+describe('zcode-bash auto-background routing', () => {
+  it('isAutoBackgroundEligible mirrors the oracle (non-empty, first word is not sleep)', () => {
+    expect(isAutoBackgroundEligible('')).toBe(false)
+    expect(isAutoBackgroundEligible('   ')).toBe(false)
+    expect(isAutoBackgroundEligible('sleep 30')).toBe(false)
+    expect(isAutoBackgroundEligible('  sleep 30 && echo x')).toBe(false)
+    expect(isAutoBackgroundEligible('echo hi && sleep 30')).toBe(true)
+    expect(isAutoBackgroundEligible('Sleep 30')).toBe(true)
+    expect(isAutoBackgroundEligible('"sleep" 30')).toBe(true)
+  })
+
+  it('renderBackgroundAck carries id, notification promise, collection pointer', () => {
+    expect(renderBackgroundAck('bash-7')).toBe(
+      'Command running in background with ID: bash-7. You will be notified when it completes. To check interim output, use job_output.',
+    )
+  })
+
+  it('wrapWithCwdMarkerAndStderrFile diverts stderr and keeps the marker', () => {
+    const script = wrapWithCwdMarkerAndStderrFile('echo hi', 'tok', "/tmp/a'b/c.log")
+    expect(script).toContain(`2> '/tmp/a'\\''b/c.log'`)
+    expect(script).toContain(markerPrefix('tok'))
+    expect(script).toContain('exit $__ZCODE_STATUS__')
   })
 })

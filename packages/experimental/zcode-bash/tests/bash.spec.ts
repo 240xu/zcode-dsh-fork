@@ -168,7 +168,7 @@ describe('dsh-zcode-bash', () => {
     const ctx = await setup()
     const started = await call(ctx, 'bash', { command: 'echo bg-ok', description: 'test command', run_in_background: true })
     expect(valueOf(started)).toMatchObject({ kind: 'background' })
-    expect(text(started)).toMatch(/started background job bash-\d+/)
+    expect(text(started)).toMatch(/Command running in background with ID: bash-\d+/)
     const id = (valueOf(started) as { backgroundTaskId: string }).backgroundTaskId
     const read = await callUntilText(ctx, 'job_output', { job_id: id }, 'bg-ok')
     expect(text(read)).toContain('bg-ok')
@@ -176,7 +176,7 @@ describe('dsh-zcode-bash', () => {
     expect(text(done)).toContain('[status: completed, exit code: 0]')
   })
 
-  it('background: a collected background cd updates the session cwd without eating output', async () => {
+  it('background: a background cd never moves session cwd (oracle: foreground-only capture)', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'bg-cwd', workRoot)
     const subdir = join(workRoot, 'subdir')
@@ -189,15 +189,15 @@ describe('dsh-zcode-bash', () => {
     const id = (valueOf(started) as { backgroundTaskId: string }).backgroundTaskId
     const done = await callUntilText(ctx, 'job_output', { job_id: id }, '[status: completed, exit code: 0]', 10_000, agent)
     expect(text(done)).toContain('moved')
-    const pwd = await call(ctx, 'bash', { command: 'pwd', description: 'where now' }, agent)
-    expect((valueOf(pwd) as { stdout: string }).stdout.trim()).toBe(subdir)
+    const pwd = await call(ctx, 'bash', { command: 'pwd', description: 'still at root' }, agent)
+    expect((valueOf(pwd) as { stdout: string }).stdout.trim()).toBe(workRoot)
   })
 
   it('background: a job started by an agent is owned by that agent', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'sess-owner')
     const started = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true }, agent)
-    expect(text(started)).toMatch(/started background job bash-\d+/)
+    expect(text(started)).toMatch(/Command running in background with ID: bash-\d+/)
     const id = (valueOf(started) as { backgroundTaskId: string }).backgroundTaskId
 
     const anon = await call(ctx, 'job_output', { job_id: id })
@@ -216,6 +216,33 @@ describe('dsh-zcode-bash', () => {
     const value = valueOf(result) as { kind: string; status: string; timedOut: boolean }
     expect(value).toMatchObject({ kind: 'foreground', status: 'timed_out', timedOut: true })
     expect(text(result)).toBe('Command timed out after 50ms\n<error>Command was aborted before completion</error>')
+  })
+
+  it('timeout: an eligible command backgrounds instead of dying', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'timeout-auto', workRoot)
+    const started = await call(
+      ctx,
+      'bash',
+      { command: 'echo auto-bg && sleep 3', description: 'auto background', timeout: 200 },
+      agent,
+    )
+    const startedValue = valueOf(started) as { kind: string; backgroundTaskId: string }
+    expect(startedValue.kind).toBe('background')
+    expect(text(started)).toMatch(/Command running in background with ID: bash-\d+/)
+    // job_output streams incrementally: content and completion arrive on
+    // different reads.
+    const content = await callUntilText(ctx, 'job_output', { job_id: startedValue.backgroundTaskId }, 'auto-bg', 15_000, agent)
+    expect(text(content)).toContain('auto-bg')
+    await callUntilText(ctx, 'job_output', { job_id: startedValue.backgroundTaskId }, '[status: completed, exit code: 0]', 15_000, agent)
+  })
+
+  it('timeout: non-positive means no timer (unlimited foreground)', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'timeout-neg', workRoot)
+    const result = await call(ctx, 'bash', { command: 'sleep 2 && echo neg-ok', description: 'negative timeout', timeout: -5 }, agent)
+    expect(valueOf(result)).toMatchObject({ kind: 'foreground', status: 'completed' })
+    expect(text(result)).toBe('neg-ok')
   })
 
   it('timeout: zero falls back to the default and runs', async () => {
