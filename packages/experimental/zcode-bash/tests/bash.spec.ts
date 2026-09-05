@@ -54,13 +54,13 @@ async function setup() {
   return ctx
 }
 
-function registerFakeAgent(ctx: Context, sessionId: string): Agent {
+function registerFakeAgent(ctx: Context, sessionId: string, cwd?: string): Agent {
   const scopeFiber = ctx.plugin(() => {})
   const id = SessionId(sessionId)
   const agent = {
     id,
     ctx: scopeFiber.ctx,
-    session: { id, header: { version: 0, id, createdAt: 0 } },
+    session: { id, header: { version: 0, id, createdAt: 0, ...cwd !== undefined ? { cwd } : {} } },
   } as unknown as Agent
   ctx.agents.register(agent)
   return agent
@@ -129,14 +129,39 @@ describe('dsh-zcode-bash', () => {
 
   it('cwd persists across calls within one session and stays isolated between sessions', async () => {
     const ctx = await setup()
-    const a = registerFakeAgent(ctx, 'cwd-a')
-    const b = registerFakeAgent(ctx, 'cwd-b')
+    const a = registerFakeAgent(ctx, 'cwd-a', workRoot)
+    const b = registerFakeAgent(ctx, 'cwd-b', workRoot)
     const subdir = join(workRoot, 'subdir')
     await call(ctx, 'bash', { command: `cd ${subdir}`, description: 'move down' }, a)
     const again = await call(ctx, 'bash', { command: 'pwd', description: 'where am i' }, a)
     expect((valueOf(again) as { stdout: string }).stdout.trim()).toBe(subdir)
     const other = await call(ctx, 'bash', { command: 'pwd', description: 'where is b' }, b)
     expect((valueOf(other) as { stdout: string }).stdout.trim()).not.toBe(subdir)
+  })
+
+  it('cwd reverts to the workspace root with a stderr suffix when leaving it', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'cwd-outside', workRoot)
+    const start = (valueOf(await call(ctx, 'bash', { command: 'pwd', description: 'start' }, agent)) as { stdout: string }).stdout.trim()
+    const escaped = await call(ctx, 'bash', { command: 'cd /tmp && pwd', description: 'leave workspace' }, agent)
+    const escapedValue = valueOf(escaped) as { stdout: string; stderr: string }
+    expect(escapedValue.stdout.trim()).toBe('/tmp')
+    // Oracle contract: the reset note lands on stderr, and the model text
+    // carries it after the stdout part.
+    expect(escapedValue.stderr).toBe(`Shell cwd was reset to ${start}`)
+    expect(text(escaped)).toBe(`/tmp\nShell cwd was reset to ${start}`)
+    const back = await call(ctx, 'bash', { command: 'pwd', description: 'back at root' }, agent)
+    expect((valueOf(back) as { stdout: string }).stdout.trim()).toBe(start)
+  })
+
+  it('a failed cd leaves tracking untouched', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'cwd-fail', workRoot)
+    const subdir = join(workRoot, 'subdir')
+    await call(ctx, 'bash', { command: `cd ${subdir}`, description: 'move down' }, agent)
+    await call(ctx, 'bash', { command: 'cd /tmp/nonexistent && pwd', description: 'fail to move' }, agent)
+    const again = await call(ctx, 'bash', { command: 'pwd', description: 'still inside' }, agent)
+    expect((valueOf(again) as { stdout: string }).stdout.trim()).toBe(subdir)
   })
 
   it('run_in_background acks with the job id, readable through the REAL job_output tool', async () => {
@@ -153,7 +178,7 @@ describe('dsh-zcode-bash', () => {
 
   it('background: a collected background cd updates the session cwd without eating output', async () => {
     const ctx = await setup()
-    const agent = registerFakeAgent(ctx, 'bg-cwd')
+    const agent = registerFakeAgent(ctx, 'bg-cwd', workRoot)
     const subdir = join(workRoot, 'subdir')
     const started = await call(
       ctx,

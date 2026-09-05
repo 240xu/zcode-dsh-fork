@@ -13,9 +13,12 @@
  * preset scope (a supported layering: nearer scopes shadow farther ones).
  *
  * Equivalence notes (see spec section 10/11):
- * - cwd persists per agent session (ZCode session-cwd contract). Subagent
- *   sessions track their own cwd; their persona still mandates absolute
- *   paths, exactly as upstream's subagent notes do.
+ * - Session cwd follows the oracle rule: after a successful call the
+ *   end-of-command directory is adopted when it lies inside the session
+ *   workspace root, otherwise tracking reverts to the root and stderr
+ *   gains `Shell cwd was reset to <root>`. Nonzero/timed-out calls leave
+ *   tracking untouched. Subagent sessions track their own cwd; their
+ *   persona still mandates absolute paths.
  * - env/functions do not persist (fresh process per call, as upstream).
  * - The shell is `bash -c` via the deployment's executor, not a login
  *   shell: upstream initializes from the user profile, which the seam does
@@ -28,6 +31,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { isAbsolute, relative, sep } from 'node:path'
+import { realpathSync } from 'node:fs'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ShellProcess } from '@deepseek-ai/dsh-shell'
 import { clampTimeout } from '@deepseek-ai/dsh-timeout'
@@ -47,6 +52,33 @@ export const ZCODE_BASH_MAX_TIMEOUT_MS = 600_000
 
 /** Session working directories, keyed by live session object (no leaks). */
 const sessionCwd = new WeakMap<object, string>()
+
+/** Session workspace roots (the tracked cwd of the first call). */
+const sessionRoot = new WeakMap<object, string>()
+
+/**
+ * Oracle boundary rule: the end-of-command directory is adopted only when
+ * it lies inside the workspace root (same directory counts). Checked on
+ * both the raw and the symlink-resolved pair, exactly like the oracle.
+ */
+export function insideWorkspace(resolvedCwd: string, workspaceRoot: string): boolean {
+  const pairs: Array<readonly [string, string]> = [[resolvedCwd, workspaceRoot]]
+  try {
+    pairs.push([realpathSync(resolvedCwd), realpathSync(workspaceRoot)])
+  } catch {
+    // Unresolvable path: the raw pair decides alone.
+  }
+  return pairs.some(([cwd, root]) => {
+    const rel = relative(root, cwd)
+    return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${sep}`))
+  })
+}
+
+/** Oracle suffix join: strip trailing newlines, then append the suffix. */
+export function appendResetSuffix(stderrText: string, suffix: string): string {
+  const stripped = stderrText.replace(/[\r\n]+$/, '')
+  return stripped !== '' ? `${stripped}\n${suffix}` : suffix
+}
 
 /** Marker token grammar: `__ZCODE_CWD_<rand>__:<pwd>:__END__` (one line). */
 export function markerPrefix(token: string): string {
@@ -224,9 +256,24 @@ export function apply(ctx: Context): void {
         dshEnv,
         ...standingPolicy !== undefined ? { sandboxPolicy: standingPolicy } : {},
       }
-      const remember = (stdout: string): void => {
-        const parsed = parseCwdMarker(stdout, token)
-        if (session !== undefined && parsed.cwd !== undefined) sessionCwd.set(session, parsed.cwd)
+      // Oracle cwd policy: only a successful call moves tracking. An
+      // inside-workspace end directory is adopted; an outside one reverts
+      // to the root and appends the reset suffix to stderr. Anything else
+      // (nonzero exit, timeout, missing marker) leaves tracking untouched.
+      // Returns the stderr suffix for the revert case, if any.
+      const applyCwdPolicy = (endCwd: string | undefined, successful: boolean): string | undefined => {
+        if (session === undefined || endCwd === undefined || !successful) return undefined
+        let root = sessionRoot.get(session)
+        if (root === undefined) {
+          root = tracked
+          sessionRoot.set(session, root)
+        }
+        if (insideWorkspace(endCwd, root)) {
+          sessionCwd.set(session, endCwd)
+          return undefined
+        }
+        sessionCwd.set(session, root)
+        return `Shell cwd was reset to ${root}`
       }
       if (args.run_in_background === true) {
         const jobs = ctx.get('jobs')
@@ -251,14 +298,27 @@ export function apply(ctx: Context): void {
             // stream instead; output the agent never collects leaves no
             // marker behind, and then the cwd simply stays untracked.
             let seen = ''
+            let suffixDelivered = false
             return {
               cancel: () => void proc.kill(),
               done: proc.done.then(() => processOutcome(proc)),
               readOutput: () => {
                 const read = proc.readOutput()
                 seen += read.delta
-                remember(seen)
-                return renderProcessRead({ ...read, delta: stripMarkerLines(read.delta) }, proc.sandbox, [])
+                // Policy re-evaluates on every read: interim reads see no
+                // marker (it prints last) and a running process is not yet
+                // successful, so only settled-successful output moves
+                // tracking — mirroring the oracle's completed+exit-0 gate.
+                const suffix = applyCwdPolicy(
+                  parseCwdMarker(seen, token).cwd,
+                  proc.status === 'completed' && proc.exitCode === 0,
+                )
+                let delta = stripMarkerLines(read.delta)
+                if (suffix !== undefined && !suffixDelivered) {
+                  suffixDelivered = true
+                  delta = appendResetSuffix(delta, suffix)
+                }
+                return renderProcessRead({ ...read, delta }, proc.sandbox, [])
               },
             }
           },
@@ -272,12 +332,13 @@ export function apply(ctx: Context): void {
         throw error
       }
       const parsed = parseCwdMarker(result.stdout.text, token)
-      remember(result.stdout.text)
       const status = (result.timedOut ? 'timed_out' : result.exitCode !== 0 ? 'failed' : 'completed') as 'completed' | 'failed' | 'timed_out'
+      const suffix = applyCwdPolicy(parsed.cwd, status === 'completed')
+      const stderrText = suffix !== undefined ? appendResetSuffix(result.stderr.text, suffix) : result.stderr.text
       return {
         kind: 'foreground' as const,
         stdout: parsed.output,
-        stderr: result.stderr.text,
+        stderr: stderrText,
         status,
         exitCode: result.exitCode,
         timedOut: result.timedOut,

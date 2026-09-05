@@ -1,7 +1,7 @@
 /** Pure marker-helper tests for dsh-zcode-bash (no executor needed). */
 
 import { describe, expect, it } from 'vitest'
-import { cleanStdout, markerPrefix, markerSuffix, parseCwdMarker, renderForegroundResult, renderStderr, stripMarkerLines, wrapWithCwdMarker } from '../src/index.ts'
+import { appendResetSuffix, cleanStdout, insideWorkspace, markerPrefix, markerSuffix, parseCwdMarker, renderForegroundResult, renderStderr, stripMarkerLines, wrapWithCwdMarker } from '../src/index.ts'
 
 describe('zcode-bash markers', () => {
   it('wrap/parse round-trip', () => {
@@ -47,5 +47,21 @@ describe('zcode-bash oracle render contract', () => {
     expect(renderForegroundResult('', 'oops\n', { status: 'failed' as const, exitCode: 3, timeoutMs: 120_000 })).toBe('Exit code 3\noops')
     const timedOut = { status: 'timed_out' as const, exitCode: null, timeoutMs: 800 }
     expect(renderForegroundResult('', '', timedOut)).toBe('Command timed out after 800ms\n<error>Command was aborted before completion</error>')
+  })
+})
+
+describe('zcode-bash workspace boundary', () => {
+  it('insideWorkspace adopts same-or-inside, rejects escapes', () => {
+    expect(insideWorkspace('/w', '/w')).toBe(true)
+    expect(insideWorkspace('/w/sub/deep', '/w')).toBe(true)
+    expect(insideWorkspace('/other', '/w')).toBe(false)
+    expect(insideWorkspace('/w-sibling', '/w')).toBe(false)
+    expect(insideWorkspace('/w/sub/../sub2', '/w')).toBe(true) // resolves inside
+    expect(insideWorkspace('/w/sub/../../other', '/w')).toBe(false)
+  })
+
+  it('appendResetSuffix strips trailing newlines before joining', () => {
+    expect(appendResetSuffix('', 'Shell cwd was reset to /w')).toBe('Shell cwd was reset to /w')
+    expect(appendResetSuffix('oops\n\n', 'Shell cwd was reset to /w')).toBe('oops\nShell cwd was reset to /w')
   })
 })
