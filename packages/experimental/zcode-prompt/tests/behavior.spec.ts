@@ -112,8 +112,8 @@ describe('the plugin rows', () => {
     expect(semantics?.text).toContain('`TaskOutput` is DEPRECATED')
     expect(semantics?.text).toContain('`ApplyPatch`')
     expect(semantics?.text).toContain('`ReadSessionContext`')
-    // Session guidance on the skill note
-    expect(semantics?.text).toContain('when the user types `/<skill-name>`, invoke it via Skill')
+    // Session guidance on the skill note (verbatim upstream bullet)
+    expect(semantics?.text).toContain('When the user types `/<skill-name>`, invoke it via Skill')
 
     // Size guard: the whole tool-semantics section is ~9-11 KB of curated
     // text. An unterminated string literal in the evidence extraction once

@@ -151,6 +151,17 @@ describe('the zcode preset on a native-addon-less boot', () => {
       expect(memory).not.toContain('<SCOPE_GUIDANCE>')
       expect(memory).toContain('## MEMORY.md')
 
+      const cliPrefix = assembly.sections.find(section => section.name === 'zcode:cli-prefix')?.text ?? ''
+      expect(cliPrefix).toBe('You are ZCode, an interactive coding agent')
+
+      const env = assembly.sections.find(section => section.name === 'zcode:env')?.text ?? ''
+      expect(env).toContain('# Environment')
+      expect(env).toContain('You have been invoked in the following environment:')
+      expect(env).toContain('- Primary working directory: ')
+
+      const date = assembly.sections.find(section => section.name === 'zcode:date')?.text ?? ''
+      expect(date).toMatch(/^# currentDate\nToday's date is \d{4}-\d{2}-\d{2}\.$/)
+
       const context = assembly.sections.find(section => section.name === 'zcode:context')?.text ?? ''
       expect(context).toContain('# Context management')
       expect(context).toContain('When you have enough information to act, act.')

@@ -45,8 +45,15 @@
 
 # ── shell ───────────────────────────────────────────────────────────────────
 
+# ZCode's Bash keeps the session working directory across calls, runs an
+# optional background job, and enforces ZCode's timeouts (default 120000ms,
+# cap 600000ms). Neither DSH bash variant covers that contract alone
+# (plain: background without state; persistent: state without background,
+# PTY-bound), so this preset-scoped row implements it over DSH's own shell
+# seam. Registered as `bash`, shadowing the global registration inside the
+# preset scope (a supported layering: nearer scopes shadow farther ones).
 - id: tool-bash
-  name: '@deepseek-ai/dsh-tool-bash'
+  name: '@deepseek-ai/dsh-zcode-bash'
   disabled: !!js process.platform === 'win32'
 
 - id: tool-pwsh

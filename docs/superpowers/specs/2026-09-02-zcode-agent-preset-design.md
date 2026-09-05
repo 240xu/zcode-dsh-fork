@@ -75,7 +75,7 @@ packages/preset/agent-presets/presets/zcode/
 | Read | `tool-fs`（read 模式） | ZCode 原文 |
 | Write | `tool-fs` | ZCode 原文 |
 | Edit | `tool-fs` | ZCode 原文 |
-| Bash | `tool-bash` | ZCode 原文（含 Git 准则段） |
+| Bash | `dsh-zcode-bash`（preset 域，见 §12 D1） | ZCode 原文（含 Git 准则段） |
 | Glob | `tool-fs-search` | ZCode 原文 |
 | Grep | `tool-fs-search` | ZCode 原文 |
 | WebFetch | `tool-web`（fetch: true） | ZCode 原文 |
@@ -263,3 +263,55 @@ dsh session (--preset zcode)
 - DSH `MEMORY_PROMPT` 导出是 import 期快照（测试/检视用），生产路径是
   `apply()` 闭包实时渲染；`ZCODE_MEMORY_SCOPE` 非法值 fallback+警告（上游
   以 profile 诊断拒绝，本 preset 无该管线，崩溃不如降级）。
+
+---
+
+## 11. 引擎等价矩阵（DSH 原生引擎 vs ZCode 行为）
+
+目标：引擎 DSH 原生，但功能至少等价、不降级不删减。逐项 `ZCode 声称 → DSH 实际 → 处置`。
+`EQUIVALENT` 均有文件行级依据；`GAP` 需决策（见 §12）。
+
+### 11.1 EQUIVALENT（已核验）
+
+| 工具/机制 | ZCode | DSH | 依据 |
+|---|---|---|---|
+| edit 精确/唯一/replace_all + 先读强制 | 描述声称 | executor 强制（fs-observation-policy + replace_all 参数） | tool-fs/src/edit.ts:22,34,54,79 |
+| read offset/limit/图片/行号窗口 | 描述声称 | offset/limit/schema、read-image.ts、行号渲染 | tool-fs/src/read.ts:26-59, read-image.ts, read-render.ts |
+| glob 语法 + mtime 排序 | 描述声称 | `--sort=modified`，rg 后端 | tool-fs-search/src/glob.ts:82-93 |
+| todo 整单替换/三状态/priority | 描述声称 | 同投影整单替换；默认 AT MOST ONE in_progress（与 ZCode 指引一致） | tool-todo/src/index.ts:58,210 |
+| bash 超时默认/上限 | 120000/600000 | 本地后端默认 120_000、上限 600_000 | shell/bash-local/src/index.ts:107-108 |
+| bash 后台（plain） | run_in_background | job id + job_output/job_kill | tool-bash/src/index.ts:71,256 |
+| subagent 后台 + SendMessage 继续 | run_in_background + SendMessage | continuable + send_message/interrupt_agent（control 行已挂载）+ list-agents | tool-subagent:315,338；control:29,66 |
+| Explore one-shot / Agent continuable | 用途区分 | composition 两行分别配置 | agent.cordis.yml:163,170 |
+| goal 完成证据规则 | prompt 层（goal_read 描述） | prompt 层（model-driven complete） | tool-goal/src/index.ts:118 |
+| plan exit 机制 | ExitPlanMode 提审 | exit_plan_mode + /plan 命令 + isolate | plan-mode/src/index.ts:4,60,137 |
+| compaction | microcompact | compaction service（auto policy） | compaction/compaction/src/index.ts:88-109 |
+| memory Write+Edit 落盘 | Csi 保证 | fs read/write/edit 工具存在 | composition tool-fs 行 |
+| edit/tool 重名 | k9o 派发 | 同 scope 重注册抛错 → prompt 映射（已选方案 A） | 审计 Task 2 结论 |
+
+### 11.2 GAP（待 §12 决策，均经行级核验）
+
+| # | 缺口 | 详情 |
+|---|---|---|
+| G1 | bash 三选一无全等价 | ~~plain/persistent 二选一~~ → 已解决：preset 域自研 `dsh-zcode-bash`（见 §12 D1），plain/persistent 行不再挂载 |
+| G2 | web_fetch 小模型问答 | ZCode 用小模型就 prompt 作答；DSH 返回 markdown 全文。preset 层无法实现 |
+| G3 | web_fetch 跨域重定向 | ZCode 回调模型；DSH 跟随允许的重定向（fetch.ts:372）。策略级差异 |
+| G4 | web_search US-only | ZCode 声明 US-only；DSH provider 相关，无此声明 |
+| G5 | grep 缺 output_mode/multiline/type 参数 | schema 仅 pattern/path/include（grep.ts:89-94）。preset 层无法加参 |
+| G6 | read 缺视频 | 仅图片（read-image.ts），无 MP4/MOV/WEBM。preset 层无法加 |
+| G7 | ask-user 缺 previews | 有 multiSelect（index.ts:50,87），无 preview 字段。preset 层无法加 |
+| G8 | 模型无工具进入 plan mode | 只有 exit_plan_mode + 用户 /plan 命令；ZCode 模型可调 EnterPlanMode。且 tool-semantics 注说“enter plan mode”而模型无入口 |
+| G9 | 逐 call 四档权限 | host 级两档是 DSH core 现状（§10.3 已记） |
+| G10 | node_repl 三件套 | ZCode 内建 MCP；DSH 有 MCP 客户端但无 JS-eval 执行器（bash+node 可部分代偿） |
+| G11 | RespondToCoordinator | DSH 无 coordinator 概念（P4 已知） |
+| G12 | skill `plugin:skill` 命名式 | 未在 DSH skill 侧找到对应支持（UNVERIFIED；preset 无命名空间 skill，暂不阻塞） |
+| G13 | read 目录/缺失/空的精确文本 | 双方皆报错/提醒，精确文本未逐字比对（功能等价，文本未验证） |
+
+## 12. 差距决策记录（GAP → 决议）
+
+### D1（G1：bash 全等价）— 2026-09-05：preset 域自研 `dsh-zcode-bash`，不再二选一
+
+- 结论：plain（无 cwd 持久）与 persistent（丢 background、env 反持久、需 PTY）都不符合 ZCode 契约；preset 域新增 `@deepseek-ai/dsh-zcode-bash`（`packages/experimental/zcode-bash`），注册名仍为 `bash`（近 scope 遮蔽远 scope，`core/tools/src/index.ts:1167` 允许），composition `tool-bash` 行改挂本包。
+- 契约（`packages/experimental/zcode-bash/src/index.ts`）：命令经一次性 `__ZCODE_CWD_<rand>__:<pwd>:__END__` 尾标跟踪 session cwd（WeakMap per live session，渲染/透出前剥离，异 token 尾标忽略）；`timeout` 经 `clampTimeout` 按 120000/600000 钳制（非法值抛错）；`run_in_background` 走 `ctx.jobs` + `ctx.shell` 同 plain（`String(JobId)` 回填 `backgroundTaskId`，`processOutcome`/`renderProcessRead` 复用 `dsh-tool-bash`）；`dangerouslyDisableSandbox: true` 大声拒绝（sandbox 系 host 控制，工具不得自提权）。
+- 有意差异（§10 登记）：shell 系部署 executor 的 `bash -c` 而非登录 shell（profile 定制环境行为不同）；无 PTY（与 plain 一致，后台输出轮询经 job_output）。
+- 验证：`tests/registration.spec.ts` + `tests/markers.spec.ts` 本地 5/5；`tests/bash.spec.ts`（真实执行器：cwd 持久/隔离、后台经 REAL job_output、timed_out、sandbox 拒绝）需 node-pty 主机，CI 跑；`tsc -b` 0 错误；oxlint 干净；`zcode-preset.spec.ts` 行 id 不变仍绿。

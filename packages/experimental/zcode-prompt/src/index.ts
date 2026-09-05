@@ -12,6 +12,13 @@
  * - `zcode:behavior` (order 100): identity/Harness + dynamic behavior,
  *   verbatim from the byte-verified evidence files shipped beside this
  *   module.
+ * - `zcode:cli-prefix` (order 50): the stable CLI prefix line (`Djo`),
+ *   verbatim. ZCode injects it as its own first system message.
+ * - `zcode:env` (order 300): Environment Info (`Xjo` shape), labels
+ *   verbatim, values resolved live per assembly.
+ * - `zcode:sysctx` (order 320): git System Context (`eFo` shape), snapshot
+ *   at first assembly per directory; `''` outside repos (dropped).
+ * - `zcode:date` (order 490): Current Date (`fre` shape), local-ISO date.
  * - `zcode:context` (order 200): ZCode's Context Management section
  *   (WSr: autonomy and turn-completion guidance), verbatim from
  *   context-management.txt.
@@ -27,6 +34,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { BEHAVIOR_TEXT } from './behavior-text.ts'
+import { buildCliPrefix, buildCurrentDate, buildEnvInfo, buildSystemContext } from './env-sections.ts'
 import { TOOL_DESCRIPTIONS } from './tool-texts.ts'
 
 export const inject = ['systemPrompt']
@@ -48,7 +56,7 @@ const PARAMETER_NOTES: Record<string, string> = {
   edit: 'ZCode requires the file to have been Read in this conversation before editing; `old_string` must match exactly including indentation and be unique; `replace_all` replaces every occurrence.',
   web_search: 'ZCode notes results are US-only.',
   goal_read: 'ZCode semantics: the goal text is the authoritative long-running objective; do not mark the goal complete without real evidence of achievement — a finished plan or todo list is not completion evidence.',
-  skill: 'ZCode session guidance: when the user types `/<skill-name>`, invoke it via Skill. Only use skills listed in the user-invocable skills section — don\'t guess.',
+  skill: "ZCode session guidance, verbatim:\n- When the user types `/<skill-name>`, invoke it via Skill. Only use skills listed in the user-invocable skills section — don't guess.",
 }
 
 function toolSemanticsText(): string {
@@ -59,7 +67,7 @@ function toolSemanticsText(): string {
     '',
     '## ZCode tools mapped to DSH equivalents',
     '',
-    '- `EnterPlanMode` / `ExitPlanMode`: this session\'s plan mode (see the plan-mode section). Enter plan mode to align on approach before implementing; exit it to submit the plan for approval. A user\'s conversational agreement approves nothing — only exiting plan mode requests approval.',
+    '- `EnterPlanMode` / `ExitPlanMode`: this session\'s plan mode (see the plan-mode section). In this deployment plan mode is entered by the user (`/plan` command), not by a tool call — there is no EnterPlanMode tool. Exit it (exit_plan_mode) to submit the plan for approval. A user\'s conversational agreement approves nothing — only exiting plan mode requests approval.',
     '- `SendMessage`: continue a background subagent with a follow-up message instead of starting a new one.',
     '- `TaskOutput` is DEPRECATED upstream: never poll for background results; collect finished background work with `job_output` (wait only when genuinely blocked) and stop irrelevant work with `job_kill` (`TaskStop`).',
     '- `ApplyPatch`: never call a patch tool directly — perform the same edit with `write`/`edit` (upstream dispatches ApplyPatch to Write/Edit).',
@@ -85,6 +93,11 @@ function toolSemanticsText(): string {
 
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.systemPrompt.section({
+    name: 'zcode:cli-prefix',
+    order: 50,
+    text: buildCliPrefix(),
+  }), 'zcode cli-prefix section')
+  ctx.effect(() => ctx.systemPrompt.section({
     name: 'zcode:behavior',
     order: 100,
     text: BEHAVIOR_TEXT,
@@ -95,8 +108,23 @@ export function apply(ctx: Context): void {
     text: CONTEXT_TEXT.trim(),
   }), 'zcode context section')
   ctx.effect(() => ctx.systemPrompt.section({
+    name: 'zcode:env',
+    order: 300,
+    text: () => buildEnvInfo(),
+  }), 'zcode env section')
+  ctx.effect(() => ctx.systemPrompt.section({
+    name: 'zcode:sysctx',
+    order: 320,
+    text: () => buildSystemContext(),
+  }), 'zcode sysctx section')
+  ctx.effect(() => ctx.systemPrompt.section({
     name: 'zcode:tool-semantics',
     order: 460,
     text: toolSemanticsText(),
   }), 'zcode tool-semantics section')
+  ctx.effect(() => ctx.systemPrompt.section({
+    name: 'zcode:date',
+    order: 490,
+    text: () => buildCurrentDate(),
+  }), 'zcode date section')
 }

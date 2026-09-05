@@ -931,8 +931,11 @@ describe('the zcode preset composition', () => {
       expect(persona).toContain('You are ZCode, an interactive coding agent running on DeepSeek Harness')
 
       // All evidence-backed zcode sections are present.
+      expect(names).toContain('zcode:cli-prefix')
       expect(names).toContain('zcode:behavior')
       expect(names).toContain('zcode:context')
+      expect(names).toContain('zcode:env')
+      expect(names).toContain('zcode:date')
       expect(names).toContain('zcode:memory')
       expect(names).toContain('zcode:tool-semantics')
       const behavior = assembly.sections.find(section => section.name === 'zcode:behavior')?.text ?? ''

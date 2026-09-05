@@ -423,6 +423,7 @@
       "@deepseek-ai/dsh-workflow-worker-thread": ["./packages/workflow/workflow-worker-thread/src"],
       "@deepseek-ai/dsh-workspace": ["./packages/workspace/workspace/src"],
       "@deepseek-ai/dsh-workspace/invariant": ["./packages/workspace/workspace/src/invariant.ts"],
+      "@deepseek-ai/dsh-zcode-bash": ["./packages/experimental/zcode-bash/src"],
       "@deepseek-ai/dsh-zcode-memory": ["./packages/experimental/zcode-memory/src"],
       "@deepseek-ai/dsh-zcode-prompt": ["./packages/experimental/zcode-prompt/src"],
       "@deepseek-ai/dsh-zcode-todo": ["./packages/experimental/zcode-todo/src"]

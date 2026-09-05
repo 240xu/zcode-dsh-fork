@@ -194,9 +194,12 @@ describe.skipIf(API_KEY === '')('the zcode preset against a live model', () => {
       const assembly = await ctx.systemPrompt.assemble({ scope: agent })
       const names = assembly.sections.map(s => s.name)
       expect(names).toContain('deployment:persona')
+      expect(names).toContain('zcode:cli-prefix')
       expect(names).toContain('zcode:behavior')
       expect(names).toContain('zcode:context')
+      expect(names).toContain('zcode:env')
       expect(names).toContain('zcode:memory')
+      expect(names).toContain('zcode:date')
       expect(names).toContain('zcode:tool-semantics')
 
       const firstSeq = agent.session.seq
