@@ -106,24 +106,25 @@ async function callUntilText(
 }
 
 describe('dsh-zcode-bash', () => {
-  it('foreground: runs the command and renders the exit-code marker', async () => {
+  it('foreground: runs the command and renders raw output with no marker on success', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'fg-1')
     const result = await call(ctx, 'bash', { command: 'echo hello', description: 'say hello' }, agent)
     const value = valueOf(result) as { kind: string; stdout: string; stderr: string; status: string; exitCode: number; timedOut: boolean }
     expect(value).toMatchObject({ kind: 'foreground', stdout: 'hello\n', status: 'completed', exitCode: 0, timedOut: false })
     expect(value.stdout).not.toContain('__ZCODE_CWD_')
-    expect(text(result)).toContain('[exit code: 0]')
+    // Oracle contract: success renders stdout+stderr only, trailing newline trimmed.
+    expect(text(result)).toBe('hello')
   })
 
-  it('foreground: stderr is preserved and failures report failed with the exit code', async () => {
+  it('foreground: failures render an `Exit code N` header, stderr included', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'fg-2')
     const result = await call(ctx, 'bash', { command: 'echo oops >&2; exit 3', description: 'fail loudly' }, agent)
     const value = valueOf(result) as { kind: string; stdout: string; stderr: string; status: string; exitCode: number }
     expect(value).toMatchObject({ kind: 'foreground', status: 'failed', exitCode: 3 })
     expect(value.stderr).toContain('oops')
-    expect(text(result)).toContain('[exit code: 3]')
+    expect(text(result)).toBe('Exit code 3\noops')
   })
 
   it('cwd persists across calls within one session and stays isolated between sessions', async () => {
@@ -183,12 +184,13 @@ describe('dsh-zcode-bash', () => {
     await call(ctx, 'job_output', { job_id: id, wait: true }, agent) // await settlement — no orphan
   })
 
-  it('timeout: an over-long command reports timed_out instead of hanging', async () => {
+  it('timeout: an over-long command reports timed_out with the oracle wording', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'timeout-1')
     const result = await call(ctx, 'bash', { command: 'sleep 30', description: 'sleep long', timeout: 50 }, agent)
     const value = valueOf(result) as { kind: string; status: string; timedOut: boolean }
     expect(value).toMatchObject({ kind: 'foreground', status: 'timed_out', timedOut: true })
+    expect(text(result)).toBe('Command timed out after 50ms\n<error>Command was aborted before completion</error>')
   })
 
   it('timeout: non-positive values are rejected', async () => {

@@ -84,6 +84,35 @@ export function parseCwdMarker(stdout: string, token: string): ParsedCwdResult {
   return { output: stdout, cwd: undefined }
 }
 
+/** Oracle-observed stdout cleaning: drop leading blank lines, trim the end. */
+export function cleanStdout(stdout: string): string {
+  return stdout !== '' ? stdout.replace(/^(\s*\n)+/, '').trimEnd() : ''
+}
+
+/** Oracle-observed stderr rendering, with the abort tag when interrupted. */
+export function renderStderr(stderr: string, interrupted: boolean): string {
+  let text = stderr.trim()
+  if (interrupted) {
+    if (text !== '') text += '\n'
+    text += '<error>Command was aborted before completion</error>'
+  }
+  return text
+}
+
+/**
+ * Oracle-observed foreground result text:
+ * - timed out: `Command timed out after <ms>` + output parts;
+ * - failed: `Exit code <N>` + output parts;
+ * - completed: output parts only.
+ * Empty parts are dropped and the rest joined with a single newline.
+ */
+export function renderForegroundResult(stdout: string, stderr: string, outcome: { status: 'completed' | 'failed' | 'timed_out'; exitCode: number | null; timeoutMs: number }): string {
+  const parts = [cleanStdout(stdout), renderStderr(stderr, outcome.status === 'timed_out')]
+  if (outcome.status === 'timed_out') parts.unshift(`Command timed out after ${outcome.timeoutMs}ms`)
+  else if (outcome.status === 'failed') parts.unshift(`Exit code ${outcome.exitCode ?? 'unknown'}`)
+  return parts.filter(part => part !== '').join('\n')
+}
+
 /** Remove marker lines from streamed text (background reads). */
 export function stripMarkerLines(text: string): string {
   return text.split('\n').filter(line => !line.startsWith('__ZCODE_CWD_')).join('\n')
@@ -152,12 +181,18 @@ export function apply(ctx: Context): void {
           },
         ],
       },
-      render: (_args, value) => {
+      render: (args, value) => {
         if (value.kind === 'background') {
+          // UNKNOWN (oracle background probe pending): the oracle reports
+          // background starts with its own wording; this ack is interim.
           return [{ type: 'text', text: `started background job ${value.backgroundTaskId}` }]
         }
-        const body = value.stderr.length > 0 ? `${value.stdout}\n${value.stderr}` : value.stdout
-        return [{ type: 'text', text: `${body}\n[exit code: ${value.exitCode ?? value.status}]` }]
+        // The oracle's timeout line carries the effective (clamped) timeout.
+        const effectiveTimeoutMs = clampTimeout(
+          (args as ZcodeBashArgs).timeout, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS, 'timeout',
+        )
+        const text = renderForegroundResult(value.stdout, value.stderr, { status: value.status, exitCode: value.exitCode, timeoutMs: effectiveTimeoutMs })
+        return [{ type: 'text', text }]
       },
     },
     async execute(args: ZcodeBashArgs, exec) {
