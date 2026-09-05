@@ -77,23 +77,24 @@ describe('the zcode shipped preset', () => {
     const config = explore?.config as Record<string, unknown> | undefined
     expect(config?.toolName).toBe('explore')
     expect(config?.provider).toBe('spawn')
-    // ZCode Explore persona anchors (byte-verified evidence)
+    // ZCode Explore persona anchors (live oracle run, agent-server)
     const persona = String(config?.persona ?? '')
-    expect(persona).toContain('You are ZCode Explore')
+    expect(persona).toContain('You are ZCode, an interactive coding agent\nYou are ZCode Explore')
     expect(persona).toContain('READ-ONLY MODE - NO FILE MODIFICATIONS')
-    // ZCode Explore guideline lines from the runtime's non-embedded branch
-    expect(persona).toContain('- Use Glob for broad file pattern matching')
-    expect(persona).toContain('- Use Grep for searching file contents with regex')
+    // ZCode Explore guideline lines: searches go through Bash (the oracle
+    // exposes no Glob/Grep model tools to Explore)
+    expect(persona).toContain('- Use `find` via Bash for broad file pattern matching')
+    expect(persona).toContain('- Use `grep` via Bash for searching file contents with regex')
     expect(persona).toContain('- Use Read when you know the specific file path')
-    // ZCode subagent operating notes (buildSubagentCommonNotes)
-    expect(persona).toContain('Subagent operating notes (ZCode subagent protocol')
+    // ZCode subagent notes block (verbatim header)
+    expect(persona).toContain('Notes:\n- Agent threads always have their cwd reset')
     expect(persona).toContain('only use absolute file paths')
     expect(persona).toContain('MUST avoid using emojis')
-    // Read-only tool filter on DSH tool names. ZCode grants Explore TodoWrite;
-    // DSH's todo tool registers as `todo_write`, so the filter must name it
-    // exactly — `todo` matches nothing and silently drops the tool.
+    // Live oracle allowlist: Bash, Read, TodoWrite, WebFetch,
+    // RespondToCoordinator (no DSH equivalent for the last). DSH's todo
+    // tool registers as `todo_write`, so the filter must name it exactly.
     const filter = config?.toolFilter as Record<string, unknown> | undefined
-    expect(filter?.allow).toEqual(['bash', 'glob', 'grep', 'read', 'web_fetch', 'web_search', 'todo_write'])
+    expect(filter?.allow).toEqual(['bash', 'read', 'web_fetch', 'todo_write'])
   })
 
   it('renders the AGENT_PROFILES slot as this preset’s actual subagent roster', async () => {
