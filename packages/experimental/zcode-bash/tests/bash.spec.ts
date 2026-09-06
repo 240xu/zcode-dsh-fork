@@ -15,7 +15,7 @@
  * node-pty-capable host.
  */
 
-import { mkdtempSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -282,5 +282,49 @@ describe('dsh-zcode-bash', () => {
     const result = await call(ctx, 'bash', { command: '   ', description: 'nothing' }, agent)
     expect(valueOf(result)).toMatchObject({ kind: 'foreground', status: 'completed' })
     expect(text(result)).toBe('(Bash completed with no output)')
+  })
+
+  it('truncation: 30000 bytes render inline, 30001 persist to a file with the envelope', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'trunc-1', workRoot)
+    const inline = await call(ctx, 'bash', { command: `head -c 30000 /dev/zero | tr '\\0' A`, description: 'thirty thousand' }, agent)
+    const inlineValue = valueOf(inline) as { kind: string; outputFile?: string }
+    expect(inlineValue).toMatchObject({ kind: 'foreground' })
+    expect(inlineValue.outputFile).toBeUndefined()
+    expect(text(inline)).toBe('A'.repeat(30_000))
+    const big = await call(ctx, 'bash', { command: `head -c 30001 /dev/zero | tr '\\0' A`, description: 'thirty thousand one' }, agent)
+    const bigValue = valueOf(big) as { kind: string; outputFile?: string }
+    expect(bigValue).toMatchObject({ kind: 'foreground' })
+    expect(typeof bigValue.outputFile).toBe('string')
+    const rendered = text(big)
+    expect(rendered).toContain('<persisted-output>\nOutput too large (29.3KB). Full output saved to: ')
+    expect(rendered).toContain(`\n\nPreview (first 2KB):\n${'A'.repeat(2_000)}\n...\n</persisted-output>`)
+    const saved = readFileSync(bigValue.outputFile as string, 'utf8')
+    expect(saved).toBe('A'.repeat(30_001))
+  })
+
+  it('truncation: failing big output keeps the Exit code header outside the envelope', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'trunc-2', workRoot)
+    const result = await call(ctx, 'bash', { command: `head -c 35000 /dev/zero | tr '\\0' B; exit 3`, description: 'big failure' }, agent)
+    const value = valueOf(result) as { kind: string; status: string; exitCode: number; outputFile?: string }
+    expect(value).toMatchObject({ kind: 'foreground', status: 'failed', exitCode: 3 })
+    expect(typeof value.outputFile).toBe('string')
+    const rendered = text(result)
+    expect(rendered.startsWith('Exit code 3\n<persisted-output>\n')).toBe(true)
+    expect(rendered).toContain('Output too large (34.2KB).')
+    expect(readFileSync(value.outputFile as string, 'utf8')).toBe('B'.repeat(35_000))
+  })
+
+  it('truncation: combined stdout+stderr over the cap persists both streams', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'trunc-3', workRoot)
+    const result = await call(ctx, 'bash', { command: `echo small-out && head -c 40000 /dev/zero | tr '\\0' E >&2`, description: 'mixed streams' }, agent)
+    const value = valueOf(result) as { outputFile?: string }
+    expect(typeof value.outputFile).toBe('string')
+    const rendered = text(result)
+    expect(rendered).toContain('Output too large (39.1KB).')
+    expect(rendered).toContain(`Preview (first 2KB):\nsmall-out\n${'E'.repeat(2_000 - 10)}`)
+    expect(readFileSync(value.outputFile as string, 'utf8')).toBe(`small-out\n${'E'.repeat(40_000)}`)
   })
 })

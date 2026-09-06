@@ -27,12 +27,16 @@
  * - `dangerouslyDisableSandbox` is accepted without tool-level effect
  *   (confinement stays host-controlled), matching the oracle's runs.
  *   An empty command runs and renders `(Bash completed with no output)`.
+ * - Foreground truncation follows the oracle exactly: raw stdout+stderr
+ *   over 30000 UTF-8 bytes persists to `call_<n>_0-stdout.log` and renders
+ *   the `<persisted-output>` envelope (first 2000 chars preview, headers
+ *   outside); at or under renders inline.
  * @module @deepseek-ai/dsh-zcode-bash
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { realpathSync } from 'node:fs'
@@ -51,6 +55,20 @@ export const inject = ['tools', 'shell', 'shellEnv', 'systemPrompt'] as const
 /** ZCode bash timeouts: default 120000ms, cap 600000ms, per-call override. */
 export const ZCODE_BASH_DEFAULT_TIMEOUT_MS = 120_000
 export const ZCODE_BASH_MAX_TIMEOUT_MS = 600_000
+
+/**
+ * Oracle foreground output cap (live probes 2026-09-06, ZCode 3.10.2-19):
+ * combined stdout+stderr at or under this many UTF-8 bytes renders inline;
+ * anything larger persists to a file and renders the `<persisted-output>`
+ * envelope. Probes: 30000 bytes inline, 30001 persisted.
+ */
+export const ZCODE_BASH_INLINE_OUTPUT_LIMIT_BYTES = 30_000
+
+/**
+ * Oracle preview width: the envelope carries the first 2000 CHARACTERS of
+ * the persisted content (multibyte probe: 2000 `é` = 4000 bytes previewed).
+ */
+export const ZCODE_BASH_PREVIEW_CHARS = 2_000
 
 /**
  * Oracle timeout rule (resolveBashTimeoutMs): a falsy timeout (absent,
@@ -201,6 +219,135 @@ export function renderForegroundResult(stdout: string, stderr: string, outcome: 
   return parts.filter(part => part !== '').join('\n')
 }
 
+/** Oracle one-decimal strip (Kmt): `1.0` -> `1`, `1.5` -> `1.5`. */
+export function trimTrailingZero(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, '')
+}
+
+/**
+ * Oracle byte-size label (formatBytes, bundle-verbatim): under 1KB renders
+ * `N bytes`; KB/MB/GB render one decimal with a stripped `.0`.
+ * Probes: 30001 -> `29.3KB`, 40010 -> `39.1KB`, 35000 -> `34.2KB`.
+ */
+export function formatOutputBytes(bytes: number): string {
+  const kb = bytes / 1024
+  if (kb < 1) return `${bytes} bytes`
+  if (kb < 1024) return `${trimTrailingZero(kb)}KB`
+  const mb = kb / 1024
+  return mb < 1024 ? `${trimTrailingZero(mb)}MB` : `${trimTrailingZero(mb / 1024)}GB`
+}
+
+/**
+ * Oracle persisted-output envelope (byte-identical modulo the path):
+ * `<persisted-output>\nOutput too large (<size>). Full output saved to:
+ * <path>\n\nPreview (first 2KB):\n<preview>\n...\n</persisted-output>`.
+ */
+export function renderPersistedOutput(outputFile: string, originalBytes: number, preview: string): string {
+  return `<persisted-output>\nOutput too large (${formatOutputBytes(originalBytes)}). Full output saved to: ${outputFile}\n\nPreview (first 2KB):\n${preview}\n...\n</persisted-output>`
+}
+
+/**
+ * Oracle persist measurand (live probes 2026-09-06): the UTF-8 byte length
+ * of the RAW stdout+stderr concatenation — trailing newlines count (29995
+ * `A` + 10 `\n` = 30005 persisted), multibyte counts as bytes (15001 `é` =
+ * 30002 bytes persisted), stderr counts untrimmed (29998 `A` + 10 stderr
+ * spaces = 30008 persisted). Persisted content is that same raw
+ * concatenation, stdout first; status headers (`Exit code N`, timeout line)
+ * compose OUTSIDE the envelope (observed: `Exit code 3\n<envelope>`, file =
+ * pure command output).
+ */
+export function persistedByteLength(stdout: string, stderr: string): number {
+  return Buffer.byteLength(stdout + stderr, 'utf8')
+}
+
+/** True when the raw stdout+stderr concatenation exceeds the inline cap. */
+export function shouldPersistOutput(stdout: string, stderr: string): boolean {
+  return persistedByteLength(stdout, stderr) > ZCODE_BASH_INLINE_OUTPUT_LIMIT_BYTES
+}
+
+/** Sanitize a session id for use as a directory name. */
+export function sanitizeSessionId(sessionId: string): string {
+  const clean = sessionId.replace(/[^A-Za-z0-9_-]/g, '_')
+  return clean !== '' ? clean : 'session'
+}
+
+/** Per-session foreground call counters (oracle `call_<n>` numbering). */
+const sessionCallCount = new WeakMap<object, number>()
+
+/** Fallback session key when a call runs without an agent session. */
+const fallbackSessionKey: object = {}
+
+/** Best-effort session id string for output-file layout. */
+export function sessionIdString(session: unknown): string {
+  const sess = session as { sessionId?: unknown; id?: unknown } | undefined
+  const raw = sess !== undefined && typeof sess.sessionId === 'string' ? sess.sessionId
+    : sess !== undefined && typeof sess.id === 'string' ? sess.id
+    : 'session'
+  return String(raw)
+}
+
+/** Next per-session foreground call index (oracle `call_<n>` numbering). */
+export function nextCallIndex(sessionKey: object): number {
+  const next = (sessionCallCount.get(sessionKey) ?? 0) + 1
+  sessionCallCount.set(sessionKey, next)
+  return next
+}
+
+/**
+ * Oracle foreground persistence hook: consume a call index, and when the
+ * raw stdout+stderr concatenation exceeds the inline cap, persist it and
+ * return the file path. Returns undefined for inline-sized output or a
+ * failed write (callers render inline).
+ */
+export function persistIfOversized(session: unknown, stdout: string, stderr: string): string | undefined {
+  const key = (session as object | undefined) ?? fallbackSessionKey
+  const index = nextCallIndex(key)
+  if (!shouldPersistOutput(stdout, stderr)) return undefined
+  return writeCallFile(sessionIdString(session), index, stdout + stderr)
+}
+
+/**
+ * Persist oversized foreground output and return the file path, or
+ * undefined when the write fails (callers fall back to inline rendering).
+ * Layout mirrors the oracle (`.../<sess>/call_<n>_0-stdout.log`); the root
+ * is the process temp dir because DSH has no HOME state-dir convention —
+ * the envelope text (the behaviorally relevant surface) matches
+ * byte-for-byte modulo this path. Content is the raw stdout+stderr
+ * concatenation, exactly as observed (headers never included).
+ */
+export function writeCallFile(sessionId: string, index: number, content: string): string | undefined {
+  try {
+    const dir = join(tmpdir(), 'zcode-bash-exec', sanitizeSessionId(sessionId))
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, `call_${index}_0-stdout.log`)
+    writeFileSync(file, content, 'utf8')
+    return file
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Oracle foreground render for persisted output: headers compose OUTSIDE
+ * the envelope (observed: `Exit code 3\n<envelope>`). The timed-out abort
+ * tag trails after the envelope — big+timed-out is unobserved (eligible
+ * commands background instead of timing out), so tag placement there is
+ * inference; the file itself stays raw stdout+stderr per the observed
+ * invariant, and the small-output render is unchanged.
+ */
+export function renderForegroundResultPersisted(
+  stdout: string,
+  stderr: string,
+  outputFile: string,
+  outcome: { status: 'completed' | 'failed' | 'timed_out'; exitCode: number | null; timeoutMs: number },
+): string {
+  const content = stdout + stderr
+  const envelope = renderPersistedOutput(outputFile, Buffer.byteLength(content, 'utf8'), content.slice(0, ZCODE_BASH_PREVIEW_CHARS))
+  if (outcome.status === 'timed_out') return `Command timed out after ${outcome.timeoutMs}ms\n${envelope}\n<error>Command was aborted before completion</error>`
+  if (outcome.status === 'failed' && outcome.exitCode !== null) return `Exit code ${outcome.exitCode}\n${envelope}`
+  return envelope
+}
+
 /** Remove marker lines from streamed text (background reads). */
 export function stripMarkerLines(text: string): string {
   return text.split('\n').filter(line => !line.startsWith('__ZCODE_CWD_')).join('\n')
@@ -265,6 +412,7 @@ export function apply(ctx: Context): void {
               status: { type: 'string', required: true, enum: ['completed', 'failed', 'timed_out'] },
               exitCode: { required: true, oneOf: [{ type: 'integer' }, { type: 'null' }] },
               timedOut: { type: 'boolean', required: true },
+              outputFile: { type: 'string', description: 'Present when combined output exceeded the inline cap; full output persisted here, render the persisted-output envelope.' },
             },
           },
         ],
@@ -272,6 +420,13 @@ export function apply(ctx: Context): void {
       render: (args, value) => {
         if (value.kind === 'background') {
           return [{ type: 'text', text: renderBackgroundAck(value.backgroundTaskId) }]
+        }
+        // Oracle foreground truncation: oversized output persisted at
+        // execute time renders the persisted-output envelope (headers
+        // outside); otherwise the classic inline render.
+        if (typeof value.outputFile === 'string') {
+          const effectiveTimeoutMs = resolveTimeoutMs((args as ZcodeBashArgs).timeout)
+          return [{ type: 'text', text: renderForegroundResultPersisted(value.stdout, value.stderr, value.outputFile, { status: value.status, exitCode: value.exitCode, timeoutMs: effectiveTimeoutMs }) }]
         }
         // The oracle's timeout line carries the effective timeout.
         const effectiveTimeoutMs = resolveTimeoutMs((args as ZcodeBashArgs).timeout)
@@ -443,7 +598,8 @@ export function apply(ctx: Context): void {
               killStderr = ''
             }
             removeStderrFile(err.dir)
-            return { kind: 'foreground' as const, stdout: parsedKill.output, stderr: killStderr, status: 'timed_out' as const, exitCode: null, timedOut: true }
+            const persistedKill = persistIfOversized(session, parsedKill.output, killStderr)
+            return { kind: 'foreground' as const, stdout: parsedKill.output, stderr: killStderr, status: 'timed_out' as const, exitCode: null, timedOut: true, ...persistedKill !== undefined ? { outputFile: persistedKill } : {} }
           }
           const id = jobs.start({
             kind: 'bash',
@@ -465,7 +621,8 @@ export function apply(ctx: Context): void {
         removeStderrFile(err.dir)
         if (suffix !== undefined) stderrText = appendResetSuffix(stderrText, suffix)
         const status = (proc.status !== 'completed' ? 'failed' : proc.exitCode !== 0 ? 'failed' : 'completed') as 'completed' | 'failed' | 'timed_out'
-        return { kind: 'foreground' as const, stdout: parsed.output, stderr: stderrText, status, exitCode: proc.exitCode, timedOut: false }
+        const persisted = persistIfOversized(session, parsed.output, stderrText)
+        return { kind: 'foreground' as const, stdout: parsed.output, stderr: stderrText, status, exitCode: proc.exitCode, timedOut: false, ...persisted !== undefined ? { outputFile: persisted } : {} }
       }
       if (rawTimeout <= 0) {
         // No timer (oracle): plain foreground run over the start seam.
@@ -482,6 +639,7 @@ export function apply(ctx: Context): void {
       const status = (result.timedOut ? 'timed_out' : result.exitCode !== 0 ? 'failed' : 'completed') as 'completed' | 'failed' | 'timed_out'
       const suffix = applyCwdPolicy(parsed.cwd, status === 'completed')
       const stderrText = suffix !== undefined ? appendResetSuffix(result.stderr.text, suffix) : result.stderr.text
+      const persistedRun = persistIfOversized(session, parsed.output, stderrText)
       return {
         kind: 'foreground' as const,
         stdout: parsed.output,
@@ -489,6 +647,7 @@ export function apply(ctx: Context): void {
         status,
         exitCode: result.exitCode,
         timedOut: result.timedOut,
+        ...persistedRun !== undefined ? { outputFile: persistedRun } : {},
       }
     },
     presentCall: (args: ZcodeBashArgs) => {
