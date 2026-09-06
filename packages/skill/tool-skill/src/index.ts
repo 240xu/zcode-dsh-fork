@@ -86,10 +86,11 @@ export function apply(ctx: Context, config: Config = {}): void {
       // Oracle-compat alias (ZCode `Skill` takes `skill`): accepted and
       // resolved identically; at least one of `name`/`skill` is required.
       skill: { type: 'string', description: 'Alias for `name` (oracle-compatible callers).' },
-      // Oracle-compat passthrough (ZCode `Skill` takes `args`): accepted so
-      // oracle-shaped calls validate, but the skill seam takes no per-call
-      // arguments today, so the value is currently ignored.
-      args: { type: 'string', description: 'Optional arguments for the skill (accepted; not yet forwarded to the skill).' },
+      // Oracle contract (CONFIRMED live, corpus/skill/args-ignored):
+      // ZCode `Skill` accepts `args` but execution ignores it — the result
+      // is the skill body in the `<skill_content>` envelope with no trace
+      // of the arguments. Accept-and-ignore here is equivalence, not a gap.
+      args: { type: 'string', description: 'Optional arguments for the skill (accepted; the skill body is returned unchanged).' },
     },
     output: {
       schema: {
