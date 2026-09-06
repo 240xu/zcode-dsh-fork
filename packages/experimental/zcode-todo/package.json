@@ -26,15 +26,22 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-session-projection": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-zcode-prompt": "workspace:^"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-session-projection": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
     "@deepseek-ai/dsh-tool-todo": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/dsh-zcode-prompt": "workspace:^"
   }
 }

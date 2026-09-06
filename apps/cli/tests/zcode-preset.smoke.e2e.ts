@@ -175,12 +175,15 @@ describe('the zcode preset on a native-addon-less boot', () => {
       const catalog = ctx.tools.schemas(handle.agent).map(schema => schema.name).sort()
       // Minus the platform-blocked executors: bash, and tool-fs-search's
       // rg-backed glob/grep pair.
-      for (const expected of ['edit', 'read', 'write', 'todo_read', 'todo_write']) {
+      for (const expected of ['agent', 'edit', 'read', 'write', 'todo_read', 'todo_write']) {
         expect(catalog).toContain(expected)
       }
       expect(catalog).not.toContain('bash')
       expect(catalog).not.toContain('glob')
-      expect(catalog).toContain('explore')
+      // No per-type delegation rows: the Agent multiplexer routes by
+      // subagent_type (general-purpose/Explore) over the subagent seam.
+      expect(catalog).not.toContain('explore')
+      expect(catalog).not.toContain('subagent')
     } finally {
       await handle.dispose()
     }

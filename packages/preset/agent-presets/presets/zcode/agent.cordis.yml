@@ -177,16 +177,18 @@
 - id: tool-ask-user
   name: '@deepseek-ai/dsh-tool-ask-user'
 
-- id: tool-todo
-  name: '@deepseek-ai/dsh-tool-todo'
-  config:
-    allowParallelInProgress: true
-
-# ZCode exposes TodoRead (read-only list view) beside TodoWrite; DSH's
-# tool-todo registers only `todo_write`, so this preset-scoped row adds the
-# read-only `todo_read` view over the same `todos` projection.
+# ZCode exposes TodoRead beside TodoWrite with per-item `priority`, which
+# DSH's tool-todo items cannot hold (core type: "No id, priority") — an
+# oracle-shaped write is rejected even though the in-prompt ZCode text
+# instructs the model to send `priority`. This preset-scoped row therefore
+# REPLACES the core tool-todo row (same-scope duplicates throw): it owns the
+# `todos` projection (mirrored fold) plus both tools, writing priority-
+# stripped snapshots through the same `todo/write` event while priorities
+# ride a session sidecar, returning the oracle result shapes.
 - id: tool-todo-read
   name: '@deepseek-ai/dsh-zcode-todo'
+  config:
+    allowParallelInProgress: true
 
 - id: tool-web
   name: '@deepseek-ai/dsh-tool-web'

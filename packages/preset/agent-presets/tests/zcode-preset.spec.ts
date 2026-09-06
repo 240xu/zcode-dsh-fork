@@ -81,6 +81,17 @@ describe('the zcode shipped preset', () => {
     expect(findEntry(entries, 'tool-subagent-explore')).toBeUndefined()
   })
 
+  it('owns todos through the zcode row alone (core row would collide)', async () => {
+    const entries = await zcodeEntries()
+    const shadow = findEntry(entries, 'tool-todo-read')
+    expect(shadow).toBeDefined()
+    expect(shadow?.name).toBe('@deepseek-ai/dsh-zcode-todo')
+    expect((shadow?.config as Record<string, unknown> | undefined)?.allowParallelInProgress).toBe(true)
+    // Same-scope duplicates throw: the shadow owns the `todos` projection
+    // and both tools, so the core tool-todo row must stay out.
+    expect(findEntry(entries, 'tool-todo')).toBeUndefined()
+  })
+
   it('renders the AGENT_PROFILES slot as this preset’s actual subagent roster', async () => {
     // ZCode renders the live ROr profiles slot at assembly; the DSH port
     // renders this preset's real roster in the same ROr shape. This locks

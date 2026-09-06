@@ -11,6 +11,7 @@
     { "path": "../../../vendor/cordis" },
     { "path": "../../core/tools" },
     { "path": "../../session/session-projection" },
-    { "path": "../../todo/tool-todo" }
+    { "path": "../../todo/tool-todo" },
+    { "path": "../zcode-prompt" }
   ]
 }
