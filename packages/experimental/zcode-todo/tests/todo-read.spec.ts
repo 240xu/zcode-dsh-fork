@@ -141,9 +141,18 @@ describe('dsh-zcode-todo', () => {
 
   it('reports an empty list before the first write', async () => {
     const ctx = await setup()
-    const read = await callTool(ctx, 'todo_read', {}, agentWithSession( 'fresh'))
+    const read = await callTool(ctx, 'todo_read', {}, agentWithSession('fresh'))
     expect(valueOf(read)).toEqual({ todos: [] })
     expect(textOf(read)).toBe('{"todos":[]}')
+  })
+
+  it('persists the list across turn boundaries with priorities intact', async () => {
+    const ctx = await setup()
+    const agent = agentWithSession('multiturn')
+    valueOf(await callTool(ctx, 'todo_write', { todos: WRITE }, agent))
+    agent.session.append('turn/start', { turn: 2 })
+    const read = await callTool(ctx, 'todo_read', {}, agent)
+    expect(valueOf(read)).toEqual({ todos: WRITE })
   })
 
   it('rejects callers without an owning agent session', async () => {

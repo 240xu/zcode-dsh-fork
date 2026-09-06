@@ -122,12 +122,13 @@ export function apply(ctx: Context, config: ZcodeTodoConfig = {}): void {
   // single-in_progress rule below must match the deployment policy.
   const allowParallel = config.allowParallelInProgress ?? true
 
-  // The `todos` projection, mirrored from dsh-tool-todo (which this
-  // preset-scoped row replaces in the zcode composition — same-scope
-  // duplicates throw, so one owner must register projection and tools
-  // together): whole list or pre-first-write null; latest `todo/write`
-  // wins; cleared by the next turn/start; stateVersion kept identical so
-  // persisted sessions keep replaying.
+  // The `todos` projection, owned here (the preset mounts this row INSTEAD
+  // of the core tool-todo row — same-scope duplicates throw). Shape and
+  // `todo/write` handling mirror the core fold, with ONE intentional
+  // difference: no clearing on `turn/start`. The oracle list persists
+  // across turns within the session (corpus/todo/cross-turn-persistence);
+  // the core clears for a fresh per-turn plan. stateVersion kept identical
+  // so persisted sessions keep replaying.
   const todosProjectionSchema: ZodType<TodoItem[] | null> = zod.union([
     zod.array(zod.object({
       content: zod.string(),
@@ -141,7 +142,6 @@ export function apply(ctx: Context, config: ZcodeTodoConfig = {}): void {
     init: () => null,
     apply: (state, event) => {
       if (event.type === 'todo/write') return event.data.todos
-      if (event.type === 'turn/start') return null
       return state
     },
     wire: { viewSchema: todosProjectionSchema, view: state => state },
