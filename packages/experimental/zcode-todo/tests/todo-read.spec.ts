@@ -139,6 +139,22 @@ describe('dsh-zcode-todo', () => {
     }, agent)).isError).toBe(true)
   })
 
+  it('clears the list on an empty write with oracle bytes (explicit-clear mechanism)', async () => {
+    const ctx = await setup()
+    const agent = agentWithSession('clear')
+    valueOf(await callTool(ctx, 'todo_write', { todos: WRITE }, agent))
+    const cleared = await callTool(ctx, 'todo_write', { todos: [] }, agent)
+    const value = valueOf(cleared) as { oldTodos: unknown; todos: unknown; summary: unknown }
+    expect(value.oldTodos).toEqual(WRITE)
+    expect(value.todos).toEqual([])
+    expect(value.summary).toEqual({ total: 0, pending: 0, inProgress: 0, completed: 0 })
+    expect(textOf(cleared)).toBe(
+      '{"oldTodos":[{"content":"Write the report","status":"in_progress","priority":"high"},{"content":"Review the draft","status":"pending","priority":"medium"},{"content":"File the archive","status":"pending","priority":"low"}],"todos":[],"summary":{"total":0,"pending":0,"inProgress":0,"completed":0}}',
+    )
+    const read = await callTool(ctx, 'todo_read', {}, agent)
+    expect(valueOf(read)).toEqual({ todos: [] })
+  })
+
   it('reports an empty list before the first write', async () => {
     const ctx = await setup()
     const read = await callTool(ctx, 'todo_read', {}, agentWithSession('fresh'))
