@@ -45,6 +45,10 @@ describe('zcode-bash oracle render contract', () => {
     const failed = { status: 'failed' as const, exitCode: 5, timeoutMs: 120_000 }
     expect(renderForegroundResult('out-line\n', 'err-line\n', failed)).toBe('Exit code 5\nout-line\nerr-line')
     expect(renderForegroundResult('', 'oops\n', { status: 'failed' as const, exitCode: 3, timeoutMs: 120_000 })).toBe('Exit code 3\noops')
+    // Signal death (no numeric code): failed status, output parts only, no
+    // header (corpus/bash/signal-death).
+    expect(renderForegroundResult('before-kill\n', '', { status: 'failed' as const, exitCode: null, timeoutMs: 120_000 })).toBe('before-kill')
+    expect(renderForegroundResult('out\n', 'err\n', { status: 'failed' as const, exitCode: null, timeoutMs: 120_000 })).toBe('out\nerr')
     const timedOut = { status: 'timed_out' as const, exitCode: null, timeoutMs: 800 }
     expect(renderForegroundResult('', '', timedOut)).toBe('Command timed out after 800ms\n<error>Command was aborted before completion</error>')
   })

@@ -188,14 +188,16 @@ export function renderStderr(stderr: string, interrupted: boolean): string {
 /**
  * Oracle-observed foreground result text:
  * - timed out: `Command timed out after <ms>` + output parts;
- * - failed: `Exit code <N>` + output parts;
+ * - failed with a numeric exit code: `Exit code <N>` + output parts;
+ * - failed WITHOUT a numeric code (death by signal — corpus/bash/
+ *   signal-death): output parts only, no header; status still failed;
  * - completed: output parts only.
  * Empty parts are dropped and the rest joined with a single newline.
  */
 export function renderForegroundResult(stdout: string, stderr: string, outcome: { status: 'completed' | 'failed' | 'timed_out'; exitCode: number | null; timeoutMs: number }): string {
   const parts = [cleanStdout(stdout), renderStderr(stderr, outcome.status === 'timed_out')]
   if (outcome.status === 'timed_out') parts.unshift(`Command timed out after ${outcome.timeoutMs}ms`)
-  else if (outcome.status === 'failed') parts.unshift(`Exit code ${outcome.exitCode ?? 'unknown'}`)
+  else if (outcome.status === 'failed' && outcome.exitCode !== null) parts.unshift(`Exit code ${outcome.exitCode}`)
   return parts.filter(part => part !== '').join('\n')
 }
 

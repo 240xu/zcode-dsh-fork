@@ -127,6 +127,15 @@ describe('dsh-zcode-bash', () => {
     expect(text(result)).toBe('Exit code 3\noops')
   })
 
+  it('foreground: signal death renders output parts with no header (status failed)', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'fg-sig')
+    const result = await call(ctx, 'bash', { command: 'echo before-kill && kill -TERM $$ && echo never', description: 'die by signal' }, agent)
+    const value = valueOf(result) as { kind: string; status: string; exitCode: number | null }
+    expect(value).toMatchObject({ kind: 'foreground', status: 'failed', exitCode: null })
+    expect(text(result)).toBe('before-kill')
+  })
+
   it('cwd persists across calls within one session and stays isolated between sessions', async () => {
     const ctx = await setup()
     const a = registerFakeAgent(ctx, 'cwd-a', workRoot)
