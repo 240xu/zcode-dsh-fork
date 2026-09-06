@@ -43,12 +43,15 @@ export function apply(ctx: Context): void {
         type: 'string',
         description: 'Alias for `agent_id` (oracle-compatible callers).',
       },
-      // Oracle-compat passthrough (ZCode `SendMessage` takes `summary`, a
-      // UI preview): accepted so oracle-shaped calls validate; this runtime
-      // has no preview channel, so the value is currently ignored.
+      // Oracle contract (CONFIRMED live, corpus/subagents/message-
+      // delivery): ZCode `SendMessage` records `summary` as the task
+      // description (metadata/UI only) and delivers `message` as a new
+      // user-role turn; `summary` never reaches model-visible context.
+      // Accept-and-ignore here is equivalence for all model-observable
+      // behavior (this runtime keeps no task-metadata store).
       summary: {
         type: 'string',
-        description: 'A short summary shown as a preview in the UI (accepted; not displayed by this runtime).',
+        description: 'A short summary shown as a preview in the UI (accepted; recorded nowhere by this runtime).',
       },
       message: {
         type: 'string',
