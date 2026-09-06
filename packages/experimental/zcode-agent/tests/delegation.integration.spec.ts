@@ -20,14 +20,21 @@ import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
+import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
+import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
+import * as FsPolicy from '@deepseek-ai/dsh-fs-observation-policy'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
-import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
+import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
+import WebRuntime from '@deepseek-ai/dsh-web'
+import * as WebFetchLocal from '@deepseek-ai/dsh-web-fetch-http'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
+import SkillRegistry from '@deepseek-ai/dsh-skill'
+import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import * as ToolSubagentControl from '@deepseek-ai/dsh-tool-subagent-control'
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
@@ -56,6 +63,7 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0]) {
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
+  await ctx.plugin(ToolTodo, { allowParallelInProgress: true })
   // Global rows the child filters name (children join the parent scope and
   // see these through the global layer).
   await ctx.plugin(LocalSubprocessRuntime)
@@ -63,16 +71,24 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0]) {
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
   await ctx.plugin(ToolBash)
+  await ctx.plugin(LocalFileSystem, { cwd: root })
+  await ctx.plugin(FsPolicy)
   await ctx.plugin(ToolFs)
-  await ctx.plugin(ToolTodo)
+  await ctx.plugin(ToolFsSearch, { sampleOverCapGlobResults: false })
+  await ctx.plugin(WebRuntime, { fetchProvider: WebFetchLocal.LOCAL_FETCH_PROVIDER_ID })
+  await ctx.plugin(WebFetchLocal, {})
   await ctx.plugin(ToolWeb)
+  await ctx.plugin(SkillRegistry)
   await ctx.plugin(ToolSkill)
+  await ctx.plugin(UserQuestionService)
   await ctx.plugin(ToolAskUser)
   await ctx.plugin(ToolSessionQuery)
   await ctx.plugin(ToolSubagentControl)
   await ctx.plugin(tool)
   ctx.llm.registerAdapter(['mock'], new MockAdapter(script))
   const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
+  // Global rows (not preset-mounted here): children join the parent scope
+  // and see these through the global layer, so the oracle filters resolve.
   return { ctx, parent }
 }
 
@@ -111,3 +127,4 @@ describe('dsh-zcode-agent delegation', () => {
     expect(text(result)).toContain(`use send_message with agent_id '${value.subagentId}'`)
   }, 30000)
 })
+
