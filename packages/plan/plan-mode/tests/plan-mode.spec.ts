@@ -907,6 +907,26 @@ describe('exit_plan_mode', () => {
     expect(asked[0]?.questions[0]?.options?.map(option => option.label)).toEqual(['Approve', 'Keep planning'])
   })
 
+  it('approve with oracle-shaped allowedPrompts: accepted, approved, not enforced', async () => {
+    // Oracle contract (corpus/plan/allowed-prompts): allowedPrompts is shown
+    // to the approver and echoed, never enforced. An oracle-shaped call must
+    // therefore validate and approve exactly like a bare call.
+    const { ctx, agent } = await setupWithReview({ selected: ['Approve'] })
+    const result = await ctx.tools.execute({
+      callId: ToolCallId(`call-exit-${++callCounter}`),
+      name: EXIT_PLAN_MODE,
+      arguments: {
+        plan: '# The plan\n\ndo things',
+        allowedPrompts: [{ tool: 'Bash', prompt: 'PROMPT-MARKER-77 run probe commands' }],
+      },
+      signal: new AbortController().signal,
+      agent,
+    })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected approved plan result')
+    expect(result.value).toEqual({ approved: true })
+  })
+
   it('carries the exact plan through a PTC mode review and logs the nested dispatch', async () => {
     const plan = '# PTC mode plan\n\nUse the existing seam.'
     class ExitRuntime extends CodeRuntime {
