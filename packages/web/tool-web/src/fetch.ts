@@ -456,11 +456,13 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
     description: 'Fetch the content of a specific HTTP(S) URL and return it decoded to text.',
     parameters: {
       url: { type: 'string', required: true, description: 'The HTTP(S) URL to fetch.' },
-      // Oracle-compat passthrough (ZCode `WebFetch` takes a `prompt` to run
-      // against the fetched content with a small model): accepted so
-      // oracle-shaped calls validate. This runtime returns the converted
-      // page for the caller to answer against, so the value is currently
-      // ignored.
+      // Oracle contract (CONFIRMED live, corpus/webfetch/prompt-qa): ZCode
+      // `WebFetch` runs `prompt` as a dedicated thinking-enabled QA model
+      // call over the converted page and returns the MODEL'S ANSWER, never
+      // the raw page. This runtime has no tool->model call seam yet, so it
+      // returns the converted page for the caller to answer against and
+      // `prompt` is accepted-but-ignored — a CONFIRMED behavioral gap, not
+      // equivalence. See evidence specs/webfetch.md before changing this.
       prompt: { type: 'string', description: 'The prompt to run on the fetched content (accepted; answer from the returned page yourself).' },
     },
     output: {
