@@ -456,6 +456,12 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
     description: 'Fetch the content of a specific HTTP(S) URL and return it decoded to text.',
     parameters: {
       url: { type: 'string', required: true, description: 'The HTTP(S) URL to fetch.' },
+      // Oracle-compat passthrough (ZCode `WebFetch` takes a `prompt` to run
+      // against the fetched content with a small model): accepted so
+      // oracle-shaped calls validate. This runtime returns the converted
+      // page for the caller to answer against, so the value is currently
+      // ignored.
+      prompt: { type: 'string', description: 'The prompt to run on the fetched content (accepted; answer from the returned page yourself).' },
     },
     output: {
       schema: {

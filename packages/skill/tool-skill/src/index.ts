@@ -82,7 +82,14 @@ export function apply(ctx: Context, config: Config = {}): void {
     name: 'skill',
     description: 'Load the full instructions for an available skill. Call this with the exact skill name from the session skill catalog before acting on a task that names or clearly matches that skill.',
     parameters: {
-      name: { type: 'string', required: true, description: 'The exact skill name from the available skills list.' },
+      name: { type: 'string', description: 'The exact skill name from the available skills list. Provide this or `skill`.' },
+      // Oracle-compat alias (ZCode `Skill` takes `skill`): accepted and
+      // resolved identically; at least one of `name`/`skill` is required.
+      skill: { type: 'string', description: 'Alias for `name` (oracle-compatible callers).' },
+      // Oracle-compat passthrough (ZCode `Skill` takes `args`): accepted so
+      // oracle-shaped calls validate, but the skill seam takes no per-call
+      // arguments today, so the value is currently ignored.
+      args: { type: 'string', description: 'Optional arguments for the skill (accepted; not yet forwarded to the skill).' },
     },
     output: {
       schema: {
@@ -125,25 +132,26 @@ export function apply(ctx: Context, config: Config = {}): void {
       render: (_args, value) => [{ type: 'text', text: renderSkillContent(value) }],
     },
     async execute(args, exec) {
-      if (!isSkillName(args.name)) {
-        throw new Error(`invalid skill name "${args.name}"`)
+      const resolvedName = args.name ?? args.skill
+      if (resolvedName === undefined || !isSkillName(resolvedName)) {
+        throw new Error(`invalid skill name "${resolvedName ?? ''}" (provide \`name\` or \`skill\`)`)
       }
       // The agent is its own scope key, so the lookup resolves the layered
       // registry exactly as this agent's composition sees it.
       const lookup = { cwd: exec.agent?.session.header.cwd, signal: exec.signal, scope: exec.agent }
-      const summary = (await ctx.skills.list(lookup)).find(skill => skill.name === args.name)
+      const summary = (await ctx.skills.list(lookup)).find(skill => skill.name === resolvedName)
       if (!summary) {
-        throw new Error(`skill "${args.name}" is unknown or no longer available`)
+        throw new Error(`skill "${resolvedName}" is unknown or no longer available`)
       }
       if (!isModelInvocable(summary)) {
-        throw new Error(`skill "${args.name}" is not available for model invocation`)
+        throw new Error(`skill "${resolvedName}" is not available for model invocation`)
       }
-      const skill = await ctx.skills.get(args.name, lookup)
+      const skill = await ctx.skills.get(resolvedName, lookup)
       if (!skill) {
-        throw new Error(`skill "${args.name}" is unknown or no longer available`)
+        throw new Error(`skill "${resolvedName}" is unknown or no longer available`)
       }
       if (!isModelInvocable(skill)) {
-        throw new Error(`skill "${args.name}" is not available for model invocation`)
+        throw new Error(`skill "${resolvedName}" is not available for model invocation`)
       }
       return {
         name: skill.name,
@@ -155,7 +163,8 @@ export function apply(ctx: Context, config: Config = {}): void {
       }
     },
     presentCall(args) {
-      return { card: 'generic', title: `Load skill ${args.name}`, kind: 'read', rawInput: args.name }
+      const resolvedName = args.name ?? args.skill ?? ''
+      return { card: 'generic', title: `Load skill ${resolvedName}`, kind: 'read', rawInput: resolvedName }
     },
   })
   ctx.tools.register(skillTool)

@@ -70,51 +70,27 @@ describe('the zcode shipped preset', () => {
     expect(source.length).toBeLessThan(100_000)
   })
 
-  it('registers the Explore subagent with ZCode read-only persona and tool filter', async () => {
+  it('mounts the Agent multiplexer with the two oracle child types', async () => {
     const entries = await zcodeEntries()
-    const explore = findEntry(entries, 'tool-subagent-explore')
-    expect(explore).toBeDefined()
-    const config = explore?.config as Record<string, unknown> | undefined
-    expect(config?.toolName).toBe('explore')
-    expect(config?.provider).toBe('spawn')
-    // ZCode Explore persona anchors (live oracle run, agent-server)
-    const persona = String(config?.persona ?? '')
-    expect(persona).toContain('You are ZCode, an interactive coding agent\nYou are ZCode Explore')
-    expect(persona).toContain('READ-ONLY MODE - NO FILE MODIFICATIONS')
-    // ZCode Explore guideline lines: searches go through Bash (the oracle
-    // exposes no Glob/Grep model tools to Explore)
-    expect(persona).toContain('- Use `find` via Bash for broad file pattern matching')
-    expect(persona).toContain('- Use `grep` via Bash for searching file contents with regex')
-    expect(persona).toContain('- Use Read when you know the specific file path')
-    // ZCode subagent notes block (verbatim header)
-    expect(persona).toContain('Notes:\n- Agent threads always have their cwd reset')
-    expect(persona).toContain('only use absolute file paths')
-    expect(persona).toContain('MUST avoid using emojis')
-    // Live oracle allowlist: Bash, Read, TodoWrite, WebFetch,
-    // RespondToCoordinator (no DSH equivalent for the last). DSH's todo
-    // tool registers as `todo_write`, so the filter must name it exactly.
-    const filter = config?.toolFilter as Record<string, unknown> | undefined
-    expect(filter?.allow).toEqual(['bash', 'read', 'web_fetch', 'todo_write'])
+    const agent = findEntry(entries, 'tool-agent')
+    expect(agent).toBeDefined()
+    expect(agent?.name).toBe('@deepseek-ai/dsh-zcode-agent')
+    // No per-type delegation rows: the multiplexer routes by subagent_type
+    // over the subagent seam (personas/filters verified in zcode-agent).
+    expect(findEntry(entries, 'tool-subagent')).toBeUndefined()
+    expect(findEntry(entries, 'tool-subagent-explore')).toBeUndefined()
   })
 
   it('renders the AGENT_PROFILES slot as this preset’s actual subagent roster', async () => {
     // ZCode renders the live ROr profiles slot at assembly; the DSH port
     // renders this preset's real roster in the same ROr shape. This locks
     // the two together: adding/removing a subagent row must update the text.
-    const entries = await zcodeEntries()
-    const explore = findEntry(entries, 'tool-subagent-explore')
-    const config = explore?.config as Record<string, unknown> | undefined
-    const toolName = String(config?.toolName ?? '')
-    const allow = (config?.toolFilter as Record<string, unknown> | undefined)?.allow as unknown
-    expect(Array.isArray(allow)).toBe(true)
     for (const key of ['agent', 'task'] as const) {
       const text = TOOL_DESCRIPTIONS[key] ?? ''
       expect(text).not.toContain('{AGENT_PROFILES}')
       expect(text).toContain('Available agent types and the tools they have access to:')
-      expect(text).toContain(`- ${toolName}:`)
-      for (const tool of allow as string[]) {
-        expect(text).toContain(tool)
-      }
+      // Live oracle roster line (capitalized type name, PascalCase tools).
+      expect(text).toContain('- Explore:')
     }
   })
 

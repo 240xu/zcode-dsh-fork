@@ -95,6 +95,7 @@
     "@deepseek-ai/dsh-webhook": "workspace:^",
     "@deepseek-ai/dsh-webhook-github": "workspace:^",
     "@deepseek-ai/dsh-workflow-worker-thread": "workspace:^",
+    "@deepseek-ai/dsh-zcode-agent": "workspace:^",
     "@deepseek-ai/dsh-zcode-bash": "workspace:^",
     "@deepseek-ai/dsh-zcode-memory": "workspace:^",
     "@deepseek-ai/dsh-zcode-prompt": "workspace:^",

@@ -815,12 +815,12 @@ describe('exit_plan_mode', () => {
     })
   }
 
-  it('registers the tool with one required plan argument', async () => {
+  it('registers the tool with one required plan argument plus the oracle-compat passthrough', async () => {
     const ctx = await setup()
     const schema = ctx.tools.schemas().find(entry => entry.name === EXIT_PLAN_MODE)
     const parameters = schema?.parameters as { required?: string[]; properties?: Record<string, unknown> }
     expect(schema?.description).toMatch(/^Use only in plan mode\./)
-    expect(Object.keys(parameters.properties ?? {})).toEqual(['plan'])
+    expect(Object.keys(parameters.properties ?? {})).toEqual(['plan', 'allowedPrompts'])
     expect(parameters.required).toEqual(['plan'])
   })
 

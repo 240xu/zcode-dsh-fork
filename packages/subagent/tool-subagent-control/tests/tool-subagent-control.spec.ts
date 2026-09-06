@@ -106,12 +106,12 @@ async function waitNoActivation(ctx: Context, childId: SessionId): Promise<void>
 }
 
 describe('dsh-tool-subagent-control', () => {
-  it('registers send_message once, globally, with the two required parameters', async () => {
+  it('registers send_message once, globally, with oracle-compat aliases', async () => {
     const { ctx } = await setup([])
     const schemas = ctx.tools.schemas().filter(schema => schema.name === 'send_message')
     expect(schemas).toHaveLength(1)
     const props = (schemas[0]!.parameters as { properties?: Record<string, unknown> }).properties ?? {}
-    expect(Object.keys(props).sort()).toEqual(['agent_id', 'message'])
+    expect(Object.keys(props).sort()).toEqual(['agent_id', 'message', 'summary', 'to'])
     // The continuable path has no Task, so the schema must not promise one.
     expect(schemas[0]!.description).not.toContain('job_output')
     expect(schemas[0]!.description).not.toContain('job id')
@@ -119,7 +119,7 @@ describe('dsh-tool-subagent-control', () => {
     expect(schemas[0]!.description).toContain('direct continuable child')
     expect(schemas[0]!.description).toContain('If you are a resident continuable child')
     expect(props.agent_id).toMatchObject({
-      description: 'The agent id of your direct continuable child, or your direct parent when you are a resident continuable child.',
+      description: 'The agent id of your direct continuable child, or your direct parent when you are a resident continuable child. Provide this or `to`.',
     })
   })
 
@@ -327,6 +327,38 @@ describe('dsh-tool-subagent-control', () => {
     const result = await callTool(ctx, 'send_message', { agent_id: 'x', message: 'y' })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('requires a calling agent')
+  })
+
+  it('resolves the oracle-compat `to` alias and accepts `summary`', async () => {
+    const release = Promise.withResolvers<undefined>()
+    const { ctx, parent } = await setupWith(new GatedAdapter([
+      { chunks: textResponse('parent done') },
+      { chunks: textResponse('child done'), gate: release.promise },
+    ]), false)
+    parent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'parent work' }],
+      source: { kind: 'user' },
+    }))
+    await parent.whenIdle()
+    parkParent(ctx, parent)
+    const started = await ctx.subagents.startContinuable({
+      provider: 'fork',
+      label: 'fork child',
+      request: { prompt: [{ type: 'text', text: 'fork task' }], parent },
+      signal: testToolSignal,
+    })
+    const result = await callTool(ctx, 'send_message', {
+      to: started.childId,
+      summary: 'Child finding',
+      message: 'CHILD_FINDING_VIA_TO',
+    }, parent)
+    expect(result.isError).toBe(false)
+    expect(text(result)).toBe(`message delivered to agent ${started.childId}`)
+    const missing = await callTool(ctx, 'send_message', { message: 'no target' }, parent)
+    expect(missing.isError).toBe(true)
+    expect(text(missing)).toContain('requires `agent_id` or `to`')
+    release.resolve(undefined)
+    await waitNoActivation(ctx, started.childId)
   })
 
   it('unregisters with its plugin fiber (HMR safety)', async () => {

@@ -146,9 +146,10 @@
 # ── delegation ──────────────────────────────────────────────────────────────
 
 # The subagent REGISTRY stays in the HOST composition (see `standard`); this
-# preset contributes the delegation TOOLS. The `explore` tool is ZCode's
-# read-only research subagent: its persona is ZCode's Explore prompt from the
-# evidence package, and toolFilter.allow restricts it to the read-only set.
+# preset contributes the delegation TOOLS. ZCode exposes a single `Agent`
+# multiplexer (subagent_type dispatch over general-purpose/Explore); the
+# multiplexer row below implements exactly that contract over DSH's subagent
+# seam with the oracle-verbatim personas and availability-gated filters.
 - id: delegation
   name: cordis:group
   group: true
@@ -161,74 +162,8 @@
     - id: tool-subagent-list-agents
       name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
 
-    - id: tool-subagent
-      name: '@deepseek-ai/dsh-tool-subagent'
-      config:
-        provider: spawn
-        toolName: subagent
-        modelSelectionSettings: true
-        backgroundMode: continuable
-
-    - id: tool-subagent-explore
-      name: '@deepseek-ai/dsh-tool-subagent'
-      config:
-        provider: spawn
-        toolName: explore
-        backgroundMode: one-shot
-        persona: |-
-          You are ZCode, an interactive coding agent
-          You are ZCode Explore, a file search and codebase research specialist for ZCode CLI. You excel at thoroughly navigating and exploring codebases.
-
-          === CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===
-          This is a READ-ONLY exploration task. You are STRICTLY PROHIBITED from:
-          - Creating new files (no Write, touch, or file creation of any kind)
-          - Modifying existing files (no Edit operations)
-          - Deleting files (no rm or deletion)
-          - Moving or copying files (no mv or cp)
-          - Creating temporary files anywhere, including /tmp
-          - Using redirect operators (>, >>, |) or heredocs to write to files
-          - Running ANY commands that change system state
-
-          Your role is EXCLUSIVELY to search and analyze existing code. You do NOT have access to file editing tools - attempting to edit files will fail.
-
-          Your strengths:
-          - Rapidly finding files using glob patterns
-          - Searching code and text with powerful regex patterns
-          - Reading and analyzing file contents
-
-          Guidelines:
-          - Use `find` via Bash for broad file pattern matching
-          - Use `grep` via Bash for searching file contents with regex
-          - Use Read when you know the specific file path you need to read
-          - Use Bash ONLY for read-only operations (ls, git status, git log, git diff, find, grep, cat, head, tail)
-          - NEVER use Bash for: mkdir, touch, rm, cp, mv, git add, git commit, npm install, pip install, or any file creation/modification
-          - Adapt your search approach based on the thoroughness level specified by the caller
-          - Communicate your final report directly as a regular message - do NOT attempt to create files
-
-          NOTE: You are meant to be a fast agent that returns output as quickly as possible. In order to achieve this you must:
-          - Make efficient use of the tools that you have at your disposal: be smart about how you search for files and implementations
-          - Wherever possible you should try to spawn multiple parallel tool calls for grepping and reading files
-
-          Complete the user's search request efficiently and report your findings clearly.
-
-          Notes:
-          - Agent threads always have their cwd reset between bash calls, as a result please only use absolute file paths.
-          - In your final response, share file paths (always absolute, never relative) that are relevant to the task. Include code snippets only when the exact text is load-bearing (e.g., a bug you found, a function signature the caller asked for) — do not recap code you merely read.
-          - For clear communication with the user the assistant MUST avoid using emojis.
-          - Do not use a colon before tool calls. Text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.
-          - Do NOT Write report/summary/findings/analysis .md files. Return findings directly as your final assistant message — the parent agent reads your text output, not files you create.
-        # Live oracle allowlist (agent-server run, embedded-search branch):
-        # Bash, Read, TodoWrite, WebFetch, RespondToCoordinator. Static branch
-        # rule (TTe): embeddedSearchEnabled ? [Bash Read WebFetch WebSearch
-        # TodoWrite] : [Bash Glob Grep Read WebFetch WebSearch TodoWrite] —
-        # availability then drops what's unconfigured (WebSearch needs a
-        # search backend; Glob/Grep model tools don't exist). This preset
-        # mounts no web_search row and runs the embedded branch, so the
-        # equivalent live set is [bash, read, web_fetch, todo_write].
-        # RespondToCoordinator has no DSH equivalent (results return via
-        # completion), so it is omitted.
-        toolFilter:
-          allow: [bash, read, web_fetch, todo_write]
+    - id: tool-agent
+      name: '@deepseek-ai/dsh-zcode-agent'
 
 # ── remaining model-facing rows ─────────────────────────────────────────────
 

@@ -302,6 +302,7 @@
     { "path": "./packages/experimental/zcode-memory" },
     { "path": "./packages/experimental/zcode-todo" },
     { "path": "./packages/experimental/zcode-bash" },
+    { "path": "./packages/experimental/zcode-agent" },
     { "path": "./packages/workflow/workflow" },
     { "path": "./packages/workflow/workflow-worker-thread" },
     { "path": "./packages/workflow/tool-workflow" },
