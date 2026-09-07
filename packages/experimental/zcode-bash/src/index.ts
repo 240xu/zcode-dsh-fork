@@ -57,6 +57,38 @@ export const ZCODE_BASH_DEFAULT_TIMEOUT_MS = 120_000
 export const ZCODE_BASH_MAX_TIMEOUT_MS = 600_000
 
 /**
+ * Oracle env-number parsing (WPr, bundle-verbatim): blank or
+ * non-positive or NaN inputs are absent (undefined); otherwise the
+ * parsed integer. Negative/zero timeouts therefore fall back to the
+ * default exactly like an absent value.
+ */
+export function parseBashTimeoutEnv(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed
+}
+
+export interface ZcodeBashTimeoutPolicy {
+  readonly defaultTimeoutMs: number
+  readonly maxTimeoutMs: number
+}
+
+/**
+ * Oracle timeout policy (vpt, bundle-verbatim): default from
+ * `BASH_DEFAULT_TIMEOUT_MS` (fallback 120000); max from
+ * `BASH_MAX_TIMEOUT_MS` (fallback 600000) floored at the default —
+ * an env max below the default never lowers the cap (observed live:
+ * max=5000 with default=120000 still completed an 8s sleep).
+ * Read per call from process.env (the oracle snapshots per session;
+ * process env is static in practice, so this is observably equal).
+ */
+export function resolveBashTimeoutPolicy(env: NodeJS.ProcessEnv = process.env): ZcodeBashTimeoutPolicy {
+  const defaultTimeoutMs = parseBashTimeoutEnv(env['BASH_DEFAULT_TIMEOUT_MS']) ?? ZCODE_BASH_DEFAULT_TIMEOUT_MS
+  const maxTimeoutMs = Math.max(parseBashTimeoutEnv(env['BASH_MAX_TIMEOUT_MS']) ?? ZCODE_BASH_MAX_TIMEOUT_MS, defaultTimeoutMs)
+  return { defaultTimeoutMs, maxTimeoutMs }
+}
+
+/**
  * Oracle foreground output cap (live probes 2026-09-06, ZCode 3.10.2-19):
  * combined stdout+stderr at or under this many UTF-8 bytes renders inline;
  * anything larger persists to a file and renders the `<persisted-output>`
@@ -71,13 +103,38 @@ export const ZCODE_BASH_INLINE_OUTPUT_LIMIT_BYTES = 30_000
 export const ZCODE_BASH_PREVIEW_CHARS = 2_000
 
 /**
- * Oracle timeout rule (resolveBashTimeoutMs): a falsy timeout (absent,
- * zero) falls back to the default; anything higher is capped at the max.
- * Never an error. (Negative values are truthy — their live effect is
- * still under probe; currently they flow through like the oracle.)
+ * Oracle timeout rule (vIe, bundle-verbatim): effective = min(timeout
+ * || default, max). A falsy timeout (absent, zero) falls back to the
+ * default; anything higher is capped at the max. Never an error.
+ * Negative values are truthy so they survive the `||`, then go
+ * non-positive → plain foreground run with no timer (observed live:
+ * `timeout: -5` + sleep 2 completes).
  */
-export function resolveTimeoutMs(timeout: number | undefined): number {
-  return Math.min(timeout || ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS)
+export function resolveTimeoutMs(timeout: number | undefined, env: NodeJS.ProcessEnv = process.env): number {
+  const policy = resolveBashTimeoutPolicy(env)
+  return Math.min(timeout || policy.defaultTimeoutMs, policy.maxTimeoutMs)
+}
+
+/** Oracle one-decimal strip (jUe): integers print bare, else one decimal. */
+export function stripDecimalOne(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
+}
+
+/**
+ * Oracle duration label (cLt, bundle-verbatim): sub-second (or
+ * non-finite) renders whole milliseconds; below a minute renders
+ * seconds; below an hour renders minutes; otherwise hours.
+ * Live ladder: 800 -> `800ms`, 1000 -> `1s`, 1500 -> `1.5s`,
+ * 3000 -> `3s`, 90000 -> `1.5m`. The timeout line carries the
+ * EFFECTIVE deadline in this form (observed: env default 3000 with
+ * no timeout arg rendered `3s`; requested 700000 capped to env max
+ * 5000 rendered `5s`).
+ */
+export function formatTimeoutDuration(timeoutMs: number): string {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 1_000) return `${Math.max(0, Math.round(timeoutMs))}ms`
+  if (timeoutMs < 60_000) return `${stripDecimalOne(timeoutMs / 1_000)}s`
+  if (timeoutMs < 3_600_000) return `${stripDecimalOne(timeoutMs / 60_000)}m`
+  return `${stripDecimalOne(timeoutMs / 3_600_000)}h`
 }
 
 /** Session working directories, keyed by live session object (no leaks). */
@@ -205,7 +262,9 @@ export function renderStderr(stderr: string, interrupted: boolean): string {
 
 /**
  * Oracle-observed foreground result text:
- * - timed out: `Command timed out after <ms>` + output parts;
+ * - timed out: `Command timed out after <humanized>` + output parts
+ *   (cLt: ms under 1s, s under 1m, m under 1h, else h; the EFFECTIVE
+ *   deadline, so env defaults/caps show through: 3000 -> `3s`);
  * - failed with a numeric exit code: `Exit code <N>` + output parts;
  * - failed WITHOUT a numeric code (death by signal — corpus/bash/
  *   signal-death): output parts only, no header; status still failed;
@@ -214,7 +273,7 @@ export function renderStderr(stderr: string, interrupted: boolean): string {
  */
 export function renderForegroundResult(stdout: string, stderr: string, outcome: { status: 'completed' | 'failed' | 'timed_out'; exitCode: number | null; timeoutMs: number }): string {
   const parts = [cleanStdout(stdout), renderStderr(stderr, outcome.status === 'timed_out')]
-  if (outcome.status === 'timed_out') parts.unshift(`Command timed out after ${outcome.timeoutMs}ms`)
+  if (outcome.status === 'timed_out') parts.unshift(`Command timed out after ${formatTimeoutDuration(outcome.timeoutMs)}`)
   else if (outcome.status === 'failed' && outcome.exitCode !== null) parts.unshift(`Exit code ${outcome.exitCode}`)
   return parts.filter(part => part !== '').join('\n')
 }
@@ -343,7 +402,7 @@ export function renderForegroundResultPersisted(
 ): string {
   const content = stdout + stderr
   const envelope = renderPersistedOutput(outputFile, Buffer.byteLength(content, 'utf8'), content.slice(0, ZCODE_BASH_PREVIEW_CHARS))
-  if (outcome.status === 'timed_out') return `Command timed out after ${outcome.timeoutMs}ms\n${envelope}\n<error>Command was aborted before completion</error>`
+  if (outcome.status === 'timed_out') return `Command timed out after ${formatTimeoutDuration(outcome.timeoutMs)}\n${envelope}\n<error>Command was aborted before completion</error>`
   if (outcome.status === 'failed' && outcome.exitCode !== null) return `Exit code ${outcome.exitCode}\n${envelope}`
   return envelope
 }
@@ -551,7 +610,8 @@ export function apply(ctx: Context): void {
       // deadline that backgrounds instead of killing; otherwise a plain
       // killing run. Eligibility mirrors the oracle exactly (non-empty,
       // first word is not `sleep`).
-      const rawTimeout = args.timeout || ZCODE_BASH_DEFAULT_TIMEOUT_MS
+      const policy = resolveBashTimeoutPolicy()
+      const rawTimeout = args.timeout || policy.defaultTimeoutMs
       const startForeground = async (err: { dir: string; file: string }, deadlineMs: number | undefined): Promise<{ kind: 'foreground'; stdout: string; stderr: string; status: 'completed' | 'failed' | 'timed_out'; exitCode: number | null; timedOut: boolean } | { kind: 'background'; backgroundTaskId: string }> => {
         const proc: ShellProcess = ctx.shell.start(ctx.shell.resolve({
           command: wrapWithCwdMarkerAndStderrFile(args.command, token, err.file),
@@ -628,7 +688,7 @@ export function apply(ctx: Context): void {
         // No timer (oracle): plain foreground run over the start seam.
         return await startForeground(makeStderrFile(), undefined)
       }
-      const timeoutMs = Math.min(rawTimeout, ZCODE_BASH_MAX_TIMEOUT_MS)
+      const timeoutMs = Math.min(rawTimeout, policy.maxTimeoutMs)
       const jobsAvailable = ctx.get('jobs') !== undefined
       if (isAutoBackgroundEligible(args.command) && jobsAvailable) {
         return await startForeground(makeStderrFile(), timeoutMs)

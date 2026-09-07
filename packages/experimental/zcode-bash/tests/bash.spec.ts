@@ -227,6 +227,14 @@ describe('dsh-zcode-bash', () => {
     expect(text(result)).toBe('Command timed out after 50ms\n<error>Command was aborted before completion</error>')
   })
 
+  it('timeout: the deadline line humanizes like the oracle (1500 -> 1.5s)', async () => {
+    const ctx = await setup()
+    const agent = registerFakeAgent(ctx, 'timeout-human')
+    const result = await call(ctx, 'bash', { command: 'sleep 30', description: 'sleep long', timeout: 1500 }, agent)
+    expect(valueOf(result)).toMatchObject({ kind: 'foreground', status: 'timed_out', timedOut: true })
+    expect(text(result)).toBe('Command timed out after 1.5s\n<error>Command was aborted before completion</error>')
+  })
+
   it('timeout: an eligible command backgrounds instead of dying', async () => {
     const ctx = await setup()
     const agent = registerFakeAgent(ctx, 'timeout-auto', workRoot)

@@ -1,7 +1,7 @@
 /** Pure marker-helper tests for dsh-zcode-bash (no executor needed). */
 
 import { describe, expect, it } from 'vitest'
-import { appendResetSuffix, cleanStdout, insideWorkspace, isAutoBackgroundEligible, markerPrefix, markerSuffix, parseCwdMarker, renderBackgroundAck, renderForegroundResult, renderStderr, resolveTimeoutMs, stripMarkerLines, wrapWithCwdMarker, wrapWithCwdMarkerAndStderrFile, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS } from '../src/index.ts'
+import { appendResetSuffix, cleanStdout, formatTimeoutDuration, insideWorkspace, isAutoBackgroundEligible, markerPrefix, markerSuffix, parseBashTimeoutEnv, parseCwdMarker, renderBackgroundAck, renderForegroundResult, renderStderr, resolveBashTimeoutPolicy, resolveTimeoutMs, stripMarkerLines, wrapWithCwdMarker, wrapWithCwdMarkerAndStderrFile, ZCODE_BASH_DEFAULT_TIMEOUT_MS, ZCODE_BASH_MAX_TIMEOUT_MS } from '../src/index.ts'
 
 describe('zcode-bash markers', () => {
   it('wrap/parse round-trip', () => {
@@ -76,6 +76,56 @@ describe('zcode-bash timeout policy', () => {
     expect(resolveTimeoutMs(0)).toBe(ZCODE_BASH_DEFAULT_TIMEOUT_MS)
     expect(resolveTimeoutMs(50)).toBe(50)
     expect(resolveTimeoutMs(999_999_999)).toBe(ZCODE_BASH_MAX_TIMEOUT_MS)
+  })
+
+  it('formatTimeoutDuration humanizes like the oracle (cLt ladder, live-verified)', () => {
+    expect(formatTimeoutDuration(0)).toBe('0ms')
+    expect(formatTimeoutDuration(50)).toBe('50ms')
+    expect(formatTimeoutDuration(800)).toBe('800ms')
+    expect(formatTimeoutDuration(999)).toBe('999ms')
+    expect(formatTimeoutDuration(1000)).toBe('1s')
+    expect(formatTimeoutDuration(1500)).toBe('1.5s')
+    expect(formatTimeoutDuration(3000)).toBe('3s')
+    expect(formatTimeoutDuration(59999)).toBe('60s') // jUe(59.999) -> toFixed(1) -> "60s", bundle-verbatim
+    expect(formatTimeoutDuration(60000)).toBe('1m')
+    expect(formatTimeoutDuration(90000)).toBe('1.5m')
+    expect(formatTimeoutDuration(120000)).toBe('2m')
+    expect(formatTimeoutDuration(3600000)).toBe('1h')
+    expect(formatTimeoutDuration(5400000)).toBe('1.5h')
+  })
+
+  it('timed-out render carries the humanized effective deadline', () => {
+    const timedOut = (timeoutMs: number) => ({ status: 'timed_out' as const, exitCode: null, timeoutMs })
+    expect(renderForegroundResult('', '', timedOut(1500))).toBe('Command timed out after 1.5s\n<error>Command was aborted before completion</error>')
+    expect(renderForegroundResult('', '', timedOut(120000))).toBe('Command timed out after 2m\n<error>Command was aborted before completion</error>')
+  })
+
+  it('parseBashTimeoutEnv mirrors WPr (blank/NaN/non-positive absent)', () => {
+    expect(parseBashTimeoutEnv(undefined)).toBeUndefined()
+    expect(parseBashTimeoutEnv('')).toBeUndefined()
+    expect(parseBashTimeoutEnv('   ')).toBeUndefined()
+    expect(parseBashTimeoutEnv('abc')).toBeUndefined()
+    expect(parseBashTimeoutEnv('0')).toBeUndefined()
+    expect(parseBashTimeoutEnv('-5')).toBeUndefined()
+    expect(parseBashTimeoutEnv('3000')).toBe(3000)
+    expect(parseBashTimeoutEnv(' 5000 ')).toBe(5000)
+  })
+
+  it('resolveBashTimeoutPolicy reads env with max floored at default', () => {
+    expect(resolveBashTimeoutPolicy({})).toEqual({ defaultTimeoutMs: 120000, maxTimeoutMs: 600000 })
+    expect(resolveBashTimeoutPolicy({ BASH_DEFAULT_TIMEOUT_MS: '3000' })).toEqual({ defaultTimeoutMs: 3000, maxTimeoutMs: 600000 })
+    // Oracle max() floor: an env max below the default never lowers the
+    // cap (observed live: max=5000 + default=120000 completed sleep 8).
+    expect(resolveBashTimeoutPolicy({ BASH_MAX_TIMEOUT_MS: '5000' })).toEqual({ defaultTimeoutMs: 120000, maxTimeoutMs: 120000 })
+    expect(resolveBashTimeoutPolicy({ BASH_DEFAULT_TIMEOUT_MS: '2000', BASH_MAX_TIMEOUT_MS: '5000' })).toEqual({ defaultTimeoutMs: 2000, maxTimeoutMs: 5000 })
+    expect(resolveBashTimeoutPolicy({ BASH_DEFAULT_TIMEOUT_MS: 'bogus' })).toEqual({ defaultTimeoutMs: 120000, maxTimeoutMs: 600000 })
+  })
+
+  it('resolveTimeoutMs honors the env policy', () => {
+    const env = { BASH_DEFAULT_TIMEOUT_MS: '2000', BASH_MAX_TIMEOUT_MS: '5000' }
+    expect(resolveTimeoutMs(undefined, env)).toBe(2000)
+    expect(resolveTimeoutMs(700000, env)).toBe(5000)
+    expect(resolveTimeoutMs(3000, env)).toBe(3000)
   })
 })
 
