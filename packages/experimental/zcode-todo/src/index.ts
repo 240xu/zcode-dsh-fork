@@ -28,8 +28,8 @@
  *   shared list through a non-shadow writer (unreachable in the normal
  *   preset flow, where every model call resolves the shadow); inventing no
  *   data in the observed paths.
- * - Empty-list read renders `{"todos":[]}` (inferred from the result-shape
- *   rule; no empty-read specimen exists yet).
+ * - Empty-list read renders `{"todos":[]}` (confirmed live 2026-09-07:
+ *   fresh-session TodoRead returns exactly `{"todos":[]}`, 12 bytes).
  * @module @deepseek-ai/dsh-zcode-todo
  */
 
