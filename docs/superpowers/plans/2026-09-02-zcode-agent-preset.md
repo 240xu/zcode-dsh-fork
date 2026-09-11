@@ -118,10 +118,10 @@ git commit -m "feat(zcode-preset): shipped preset skeleton discovered as healthy
 ### Task 2: dsh-zcode-prompt 插件 — 行为 sections（P2 部分）
 
 **Files:**
-- Create: `packages/experimental/zcode-prompt/package.json`
-- Create: `packages/experimental/zcode-prompt/src/index.ts`
-- Create: `packages/experimental/zcode-prompt/src/behavior-text.ts`
-- Test: `packages/experimental/zcode-prompt/tests/behavior.spec.ts`
+- Create: `packages/preset/zcode-prompt/package.json`
+- Create: `packages/preset/zcode-prompt/src/index.ts`
+- Create: `packages/preset/zcode-prompt/src/behavior-text.ts`
+- Test: `packages/preset/zcode-prompt/tests/behavior.spec.ts`
 
 **Interfaces:**
 - Consumes: `ctx.systemPrompt.section({ name, order, text })`（`@deepseek-ai/dsh-system-prompt` 既有 API，见 persona 插件用法 `packages/preset/persona/src/index.ts:57`）。
@@ -130,7 +130,7 @@ git commit -m "feat(zcode-preset): shipped preset skeleton discovered as healthy
 - [ ] **Step 1: 写失败测试**
 
 ```ts
-// packages/experimental/zcode-prompt/tests/behavior.spec.ts
+// packages/preset/zcode-prompt/tests/behavior.spec.ts
 import { describe, expect, it } from 'vitest'
 import { BEHAVIOR_TEXT } from '../src/behavior-text.ts'
 
@@ -151,7 +151,7 @@ describe('zcode behavior text', () => {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `pnpm run test -- packages/experimental/zcode-prompt/tests/`（新包测试按根 vitest runner；包 package.json 也可自带 test script，以仓库根 package.json 的 vitest 工作区配置为准，实现时先查根 vitest 是否拾取包内 tests/，是则直接 `pnpm run test`）
+Run: `pnpm run test -- packages/preset/zcode-prompt/tests/`（新包测试按根 vitest runner；包 package.json 也可自带 test script，以仓库根 package.json 的 vitest 工作区配置为准，实现时先查根 vitest 是否拾取包内 tests/，是则直接 `pnpm run test`）
 Expected: FAIL — 包不存在。
 
 - [ ] **Step 3: 建包并写 behavior-text.ts**
@@ -192,13 +192,13 @@ export function apply(ctx: Context): void {
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `pnpm run test -- packages/experimental/zcode-prompt/tests/`（新包测试按根 vitest runner；包 package.json 也可自带 test script，以仓库根 package.json 的 vitest 工作区配置为准，实现时先查根 vitest 是否拾取包内 tests/，是则直接 `pnpm run test`）
+Run: `pnpm run test -- packages/preset/zcode-prompt/tests/`（新包测试按根 vitest runner；包 package.json 也可自带 test script，以仓库根 package.json 的 vitest 工作区配置为准，实现时先查根 vitest 是否拾取包内 tests/，是则直接 `pnpm run test`）
 Expected: PASS。
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/experimental/zcode-prompt
+git add packages/preset/zcode-prompt
 git commit -m "feat(zcode-prompt): behavior sections with V2-verified ZCode text"
 ```
 
@@ -207,10 +207,10 @@ git commit -m "feat(zcode-prompt): behavior sections with V2-verified ZCode text
 ### Task 3: 工具描述覆写（P1）
 
 **Files:**
-- Create: `packages/experimental/zcode-prompt/src/tool-texts.ts`
-- Modify: `packages/experimental/zcode-prompt/src/index.ts`
+- Create: `packages/preset/zcode-prompt/src/tool-texts.ts`
+- Modify: `packages/preset/zcode-prompt/src/index.ts`
 - Modify: `packages/preset/agent-presets/presets/zcode/agent.cordis.yml`
-- Test: `packages/experimental/zcode-prompt/tests/tool-texts.spec.ts`
+- Test: `packages/preset/zcode-prompt/tests/behavior.spec.ts`
 
 **Interfaces:**
 - Consumes: 证据库 `findings/zcode-3.10.2-full.json` 中 15 个直接映射工具的 `description` 字段；`ctx.tools` 的 scoped 注册（shadowing，`packages/core/tools/src/index.ts:688`）。
@@ -227,7 +227,7 @@ git commit -m "feat(zcode-prompt): behavior sections with V2-verified ZCode text
 - [ ] **Step 1: 写失败测试**
 
 ```ts
-// packages/experimental/zcode-prompt/tests/tool-texts.spec.ts
+// packages/preset/zcode-prompt/tests/behavior.spec.ts
 import { describe, expect, it } from 'vitest'
 import { TOOL_DESCRIPTIONS } from '../src/tool-texts.ts'
 
@@ -258,7 +258,7 @@ describe('zcode tool descriptions', () => {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `pnpm run test -- packages/experimental/zcode-prompt/tests/`（新包测试按根 vitest runner；包 package.json 也可自带 test script，以仓库根 package.json 的 vitest 工作区配置为准，实现时先查根 vitest 是否拾取包内 tests/，是则直接 `pnpm run test`）
+Run: `pnpm run test -- packages/preset/zcode-prompt/tests/`（新包测试按根 vitest runner；包 package.json 也可自带 test script，以仓库根 package.json 的 vitest 工作区配置为准，实现时先查根 vitest 是否拾取包内 tests/，是则直接 `pnpm run test`）
 Expected: FAIL — `tool-texts.ts` 不存在。
 
 - [ ] **Step 3: 写 tool-texts.ts（从证据库粘贴）**
@@ -293,13 +293,13 @@ zcode preset 的 `agent.cordis.yml` 追加 `- id: zcode-prompt` 行引用 `@deep
 
 - [ ] **Step 5: 跑测试 + 手动验证 preset 组合**
 
-Run: `pnpm run test -- packages/experimental/zcode-prompt/tests/ packages/preset/agent-presets/tests/zcode-preset.spec.ts`
+Run: `pnpm run test -- packages/preset/zcode-prompt/tests/ packages/preset/agent-presets/tests/zcode-preset.spec.ts`
 Expected: 全 PASS。
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/experimental/zcode-prompt/src packages/preset/agent-presets/presets/zcode
+git add packages/preset/zcode-prompt/src packages/preset/agent-presets/presets/zcode
 git commit -m "feat(zcode-preset): ZCode tool descriptions via scoped shadow shells"
 ```
 
@@ -308,9 +308,9 @@ git commit -m "feat(zcode-preset): ZCode tool descriptions via scoped shadow she
 ### Task 4: dsh-zcode-memory 插件（P2）
 
 **Files:**
-- Create: `packages/experimental/zcode-memory/package.json`
-- Create: `packages/experimental/zcode-memory/src/index.ts`
-- Test: `packages/experimental/zcode-memory/tests/memory.spec.ts`
+- Create: `packages/preset/zcode-memory/package.json`
+- Create: `packages/preset/zcode-memory/src/index.ts`
+- Test: `packages/preset/zcode-memory/tests/memory.spec.ts`
 
 **Interfaces:**
 - Consumes: `ctx.systemPrompt.section`；`{{memoryRoot}}` 变量机制（读 `packages/core/system-prompt/src/index.ts` 的 VARIABLE_NAME 与变量替换实现，确认 preset 可注入变量或直接拼文本）；证据库 `findings/memory-prompt-3.10.2.txt`（12,372 字符）。
@@ -341,7 +341,7 @@ describe('zcode memory prompt', () => {
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/experimental/zcode-memory packages/preset/agent-presets/presets/zcode
+git add packages/preset/zcode-memory packages/preset/agent-presets/presets/zcode
 git commit -m "feat(zcode-preset): memory system section with three-scope root"
 ```
 

@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/experimental/zcode-bash"
+    "directory": "packages/preset/zcode-bash"
   },
   "type": "module",
   "main": "lib/index.js",

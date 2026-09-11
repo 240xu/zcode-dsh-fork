@@ -17,10 +17,10 @@ import { dirname, join, resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 
 const assets: ReadonlyArray<readonly [string, string]> = [
-  ['packages/experimental/zcode-memory/src/memory-prompt.txt', 'packages/experimental/zcode-memory/lib/memory-prompt.txt'],
-  ['packages/experimental/zcode-prompt/src/identity-section.txt', 'packages/experimental/zcode-prompt/lib/identity-section.txt'],
-  ['packages/experimental/zcode-prompt/src/dynamic-behavior.txt', 'packages/experimental/zcode-prompt/lib/dynamic-behavior.txt'],
-  ['packages/experimental/zcode-prompt/src/context-management.txt', 'packages/experimental/zcode-prompt/lib/context-management.txt'],
+  ['packages/preset/zcode-memory/src/memory-prompt.txt', 'packages/preset/zcode-memory/lib/memory-prompt.txt'],
+  ['packages/preset/zcode-prompt/src/identity-section.txt', 'packages/preset/zcode-prompt/lib/identity-section.txt'],
+  ['packages/preset/zcode-prompt/src/dynamic-behavior.txt', 'packages/preset/zcode-prompt/lib/dynamic-behavior.txt'],
+  ['packages/preset/zcode-prompt/src/context-management.txt', 'packages/preset/zcode-prompt/lib/context-management.txt'],
 ]
 
 let copied = 0

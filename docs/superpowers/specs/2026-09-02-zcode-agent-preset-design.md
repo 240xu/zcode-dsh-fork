@@ -311,8 +311,8 @@ dsh session (--preset zcode)
 
 ### D1（G1：bash 全等价）— 2026-09-05：preset 域自研 `dsh-zcode-bash`，不再二选一
 
-- 结论：plain（无 cwd 持久）与 persistent（丢 background、env 反持久、需 PTY）都不符合 ZCode 契约；preset 域新增 `@deepseek-ai/dsh-zcode-bash`（`packages/experimental/zcode-bash`），注册名仍为 `bash`（近 scope 遮蔽远 scope，`core/tools/src/index.ts:1167` 允许），composition `tool-bash` 行改挂本包。
-- 契约（`packages/experimental/zcode-bash/src/index.ts`）：命令经一次性 `__ZCODE_CWD_<rand>__:<pwd>:__END__` 尾标跟踪 session cwd（WeakMap per live session，渲染/透出前剥离，异 token 尾标忽略）；`timeout` 经 `clampTimeout` 按 120000/600000 钳制（非法值抛错）；`run_in_background` 走 `ctx.jobs` + `ctx.shell` 同 plain（`String(JobId)` 回填 `backgroundTaskId`，`processOutcome`/`renderProcessRead` 复用 `dsh-tool-bash`）；`dangerouslyDisableSandbox: true` 大声拒绝（sandbox 系 host 控制，工具不得自提权）。
+- 结论：plain（无 cwd 持久）与 persistent（丢 background、env 反持久、需 PTY）都不符合 ZCode 契约；preset 域新增 `@deepseek-ai/dsh-zcode-bash`（`packages/preset/zcode-bash`），注册名仍为 `bash`（近 scope 遮蔽远 scope，`core/tools/src/index.ts:1167` 允许），composition `tool-bash` 行改挂本包。
+- 契约（`packages/preset/zcode-bash/src/index.ts`）：命令经一次性 `__ZCODE_CWD_<rand>__:<pwd>:__END__` 尾标跟踪 session cwd（WeakMap per live session，渲染/透出前剥离，异 token 尾标忽略）；`timeout` 经 `clampTimeout` 按 120000/600000 钳制（非法值抛错）；`run_in_background` 走 `ctx.jobs` + `ctx.shell` 同 plain（`String(JobId)` 回填 `backgroundTaskId`，`processOutcome`/`renderProcessRead` 复用 `dsh-tool-bash`）；`dangerouslyDisableSandbox: true` 大声拒绝（sandbox 系 host 控制，工具不得自提权）。
 - 有意差异（§10 登记）：shell 系部署 executor 的 `bash -c` 而非登录 shell（profile 定制环境行为不同）；无 PTY（与 plain 一致，后台输出轮询经 job_output）。
 - 验证：`tests/registration.spec.ts` + `tests/markers.spec.ts` 本地 5/5；`tests/bash.spec.ts` 10/10 已在 node-pty 主机（server2）实跑通过；`tsc -b` 0 错误；oxlint 干净；`zcode-preset.spec.ts` 行 id 不变仍绿。
 - BUG 回顾（分类：实现 bug，非环境）：首版后台 `done` 回调内调用 `proc.readOutput()` 取尾标——而该 API 按契约是消费式的（`dsh-shell/src/types.ts:177`），吃掉了模型的输出，`job_output` 只剩 `(no new output)`（对照：上游同 harness 通过）。修复：`done` 只做 `processOutcome`（与上游一致）；尾标改为在 `readOutput` 包装内随消费累积解析。回归：后台 `cd` 经收集后更新 session cwd 且输出完整；agent-owned 作业不可见于匿名读取（与上游一致）。

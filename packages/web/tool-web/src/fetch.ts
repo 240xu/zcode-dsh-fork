@@ -8,6 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import TurndownService from 'turndown'
 import { gfm } from '@joplin/turndown-plugin-gfm'
+import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolResult, WebFetchResultView } from '@deepseek-ai/dsh-tools'
 import type { WebFetchBody, WebFetchResult } from '@deepseek-ai/dsh-web'
@@ -103,9 +105,9 @@ turndown.addRule('tableRowWithoutSpanExpansion', {
  * @param args - the schema-validated `web_fetch` arguments.
  * @returns the arguments as the seam's request fields.
  */
-export function parseFetchArgs(args: { url: string }): { url: string } {
+export function parseFetchArgs(args: { url: string; prompt?: unknown }): { url: string; prompt?: string } {
   if (args.url.trim().length === 0) throw new Error('url must be a non-empty string')
-  return { url: args.url }
+  return typeof args.prompt === 'string' ? { url: args.url, prompt: args.prompt } : { url: args.url }
 }
 
 /**
@@ -435,6 +437,125 @@ export function presentFetchResult(args: { url: string }, result: ToolResult): W
 }
 
 /**
+ * Oracle QA bridge (M1: direct in-tool model call — the same ~20-line shape
+ * as the compaction summarizer and the session-title call, not new
+ * architecture).
+ *
+ * Oracle contract (CONFIRMED live, corpus/webfetch/{prompt-qa,qa-success}):
+ * `WebFetch{url,prompt}` fetches + converts the page, then issues a
+ * DEDICATED QA model call (session route, max_tokens 4096, single user
+ * message = page + prompt + strict instruction template) and returns the
+ * MODEL'S ANSWER trimmed — never the raw page. Empty answer completes
+ * with a verbatim fallback; call failure completes nothing and fails the
+ * lifecycle with `Model request failed.`
+ *
+ * Guardrails (each load-bearing, none ornamental):
+ * - QA runs only for a non-blank prompt with a resolvable route; anything
+ *   else keeps today's page behavior (fail-closed, zero behavior change
+ *   for prompt-less calls).
+ * - No `tools` on the QA call (it cannot act), text-only projection with
+ *   non-text blocks dropped (session-title precedent), `exec.signal`
+ *   threaded through so the tool's own timeout budget kills runaway QA.
+ * - QA input is the converted page markdown capped at 100000 chars with
+ *   the oracle truncation note (D3r); strict template only — the relaxed
+ *   preapproved-host template is deferred (documented in specs/webfetch.md).
+ * - The page is untrusted fetch output: it enters the QA call as data
+ *   under the instruction template, and the answer keeps no model-side
+ *   taint beyond what the caller already sees (the tool result was and
+ *   remains external content).
+ */
+const QA_MAX_INPUT_CHARS = 100_000
+const QA_MAX_TOKENS = 4096
+const QA_TRUNCATION_NOTE = '\n\n[WebFetch content truncated before prompt processing]'
+const QA_EMPTY_FALLBACK = 'WebFetch completed, but the extraction model returned no text.'
+const QA_FAILURE_TEXT = 'Model request failed.'
+const QA_INSTRUCTION = 'Provide a concise response based only on the content above. In your response:\n - Enforce a strict 125-character maximum for quotes from any source document. Open Source Software is ok as long as we respect the license.\n - Use quotation marks for exact language from articles; any language outside of the quotation should never be word-for-word the same.\n - You are not a lawyer and never comment on the legality of your own prompts and responses.\n - Never produce or reproduce exact song lyrics.'
+
+/** Oracle QA prompt shape: page, then prompt, then the strict instruction template. */
+export function buildQaPrompt(markdown: string, prompt: string): string {
+  return `\nWeb page content:\n---\n${markdown}\n---\n\n${prompt}\n\n${QA_INSTRUCTION}`
+}
+
+/** Oracle QA input cap (D3r): the note replaces the tail, never the result. */
+export function capQaInput(markdown: string): string {
+  if (markdown.length <= QA_MAX_INPUT_CHARS) return markdown
+  return markdown.slice(0, QA_MAX_INPUT_CHARS - QA_TRUNCATION_NOTE.length) + QA_TRUNCATION_NOTE
+}
+
+/** Minimal structural surface for an in-tool model call (no new dependency). */
+export interface QaLlmService {
+  stream(options: GenerateOptions): AsyncIterable<StreamChunk>
+}
+
+/** Resolve the calling agent's route (session header first, agent options fallback). */
+export function resolveQaRoute(agent: unknown): { provider: string; model: string } | undefined {
+  if (agent === undefined || agent === null || typeof agent !== 'object') return undefined
+  const session = (agent as { session?: unknown }).session
+  const headerConfig = typeof session === 'object' && session !== null
+    ? (session as { requestHeader?: unknown }).requestHeader
+    : undefined
+  const header = typeof headerConfig === 'function'
+    ? (headerConfig as () => unknown).call(session) as { config?: unknown } | null | undefined
+    : undefined
+  const headerRoute = typeof header?.config === 'object' && header.config !== null
+    ? header.config as { provider?: unknown; model?: unknown }
+    : undefined
+  if (typeof headerRoute?.provider === 'string' && headerRoute.provider !== ''
+    && typeof headerRoute?.model === 'string' && headerRoute.model !== '') {
+    return { provider: headerRoute.provider, model: headerRoute.model }
+  }
+  const options = (agent as { options?: unknown }).options
+  const route = typeof options === 'object' && options !== null
+    ? options as { provider?: unknown; model?: unknown }
+    : undefined
+  if (typeof route?.provider === 'string' && route.provider !== ''
+    && typeof route?.model === 'string' && route.model !== '') {
+    return { provider: route.provider, model: route.model }
+  }
+  return undefined
+}
+
+/**
+ * Run the oracle QA call and return the trimmed answer (or the verbatim
+ * empty-answer fallback). Throws `Model request failed.` on call failure,
+ * mirroring the oracle's failed lifecycle. Never returns page content.
+ */
+export async function answerWithQa(
+  llm: QaLlmService,
+  route: { provider: string; model: string },
+  markdown: string,
+  prompt: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const assembler = new BlockAssembler()
+  try {
+    for await (const chunk of llm.stream({
+      provider: route.provider,
+      model: route.model,
+      messages: [
+        createUserMessage({
+          content: [{ type: 'text', text: buildQaPrompt(capQaInput(markdown), prompt) }],
+          source: { kind: 'plugin', plugin: 'dsh-tool-web' },
+        }),
+      ],
+      maxTokens: QA_MAX_TOKENS,
+      signal,
+    })) assembler.push(chunk)
+  } catch {
+    throw new Error(QA_FAILURE_TEXT)
+  }
+  if (assembler.finish.kind === 'error' || assembler.finish.kind === 'aborted') {
+    throw new Error(QA_FAILURE_TEXT)
+  }
+  const answer = assembler.blocks()
+    .filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
+    .map(block => block.text)
+    .join('')
+    .trim()
+  return answer === '' ? QA_EMPTY_FALLBACK : answer
+}
+
+/**
  * Register the `web_fetch` tool and its system-prompt guidance.
  *
  * @param ctx - context whose `tools` and `systemPrompt` registries receive the
@@ -456,14 +577,13 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
     description: 'Fetch the content of a specific HTTP(S) URL and return it decoded to text.',
     parameters: {
       url: { type: 'string', required: true, description: 'The HTTP(S) URL to fetch.' },
-      // Oracle contract (CONFIRMED live, corpus/webfetch/prompt-qa): ZCode
-      // `WebFetch` runs `prompt` as a dedicated thinking-enabled QA model
-      // call over the converted page and returns the MODEL'S ANSWER, never
-      // the raw page. This runtime has no tool->model call seam yet, so it
-      // returns the converted page for the caller to answer against and
-      // `prompt` is accepted-but-ignored — a CONFIRMED behavioral gap, not
-      // equivalence. See evidence specs/webfetch.md before changing this.
-      prompt: { type: 'string', description: 'The prompt to run on the fetched content (accepted; answer from the returned page yourself).' },
+      // Oracle contract (CONFIRMED live, corpus/webfetch/{prompt-qa,qa-success}):
+      // ZCode `WebFetch` runs `prompt` as a dedicated QA model call over the
+      // converted page and returns the MODEL'S ANSWER trimmed — never the raw
+      // page. Implemented below via answerWithQa (fail-closed to the page
+      // when no prompt, route, or llm service is available). Deferred: the
+      // relaxed preapproved-host template (strict template only).
+      prompt: { type: 'string', description: 'The prompt to answer from the fetched page (answered by a model call over the page content).' },
     },
     output: {
       schema: {
@@ -494,9 +614,19 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
             ],
           },
           truncated: { type: 'boolean', required: true },
+          // Set only when a prompt was answered by the QA call: the render
+          // path returns it bare (oracle bytes), keeping body lossless.
+          qaAnswer: { type: 'string', description: 'Trimmed QA model answer, present only when prompt was answered by a model call.' },
         },
       },
-      render: (_args, value) => [{ type: 'text', text: formatFetchOutput(value, maxOutputChars) }],
+      render: (args, value) => {
+        const prompt = (args as { prompt?: unknown }).prompt
+        if (typeof prompt === 'string' && prompt.trim() !== ''
+          && typeof (value as { qaAnswer?: unknown }).qaAnswer === 'string') {
+          return [{ type: 'text', text: (value as { qaAnswer: string }).qaAnswer }]
+        }
+        return [{ type: 'text', text: formatFetchOutput(value, maxOutputChars) }]
+      },
       presentationMeta: (_args, value) => fetchMetaFromValue(value, maxOutputChars),
     },
     timeoutMs,
@@ -508,12 +638,28 @@ export function applyWebFetchTool(ctx: Context, timeoutMs: number, maxOutputChar
         { url: input.url },
         exec.signal,
       )
-      return {
+      const value: WebFetchResult & { qaAnswer?: string } = {
         url: result.url,
         statusCode: result.statusCode,
         body: { kind: result.body.kind, content: result.body.content },
         truncated: result.truncated,
       }
+      // Oracle QA path: non-blank prompt + resolvable route + llm service.
+      // Anything missing keeps today's page behavior (fail-closed).
+      // QA failure throws the oracle text (failed lifecycle, like oracle).
+      const prompt = input.prompt
+      if (typeof prompt === 'string' && prompt.trim() !== '') {
+        const llm = ctx.get('llm') as QaLlmService | undefined
+        const route = resolveQaRoute(exec.agent)
+        if (llm !== undefined && typeof llm.stream === 'function' && route !== undefined) {
+          // Full conversion here (not the render-capped one): the oracle
+          // caps CONVERTED markdown at 100000 chars, so pre-slicing the
+          // source would fire the note on the wrong boundary.
+          const markdown = renderBody(result.body, Number.MAX_SAFE_INTEGER).text
+          value.qaAnswer = await answerWithQa(llm, route, markdown, prompt, exec.signal)
+        }
+      }
+      return value
     },
     presentCall: presentFetchCall,
     presentResult: (args, result) => presentFetchResult(args, result),
