@@ -78,7 +78,7 @@ describe('dsh-zcode-agent registration', () => {
     const schema = ctx.tools.schemas().find(s => s.name === 'agent')
     expect(schema).toBeDefined()
     expect(schema!.description).toBe(TOOL_DESCRIPTIONS['agent'])
-    expect(Object.keys(schema!.parameters.properties)).toEqual(
+    expect(Object.keys(schema!.parameters.properties as Record<string, unknown>)).toEqual(
       expect.arrayContaining(['description', 'prompt', 'subagent_type', 'run_in_background']),
     )
   })

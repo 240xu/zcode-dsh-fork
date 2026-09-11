@@ -35,7 +35,7 @@ describe('dsh-zcode-bash registration', () => {
     const schema = ctx.tools.schemas().find(s => s.name === 'bash')
     expect(schema).toBeDefined()
     expect(schema!.description).toBe(TOOL_DESCRIPTIONS['bash'])
-    const keys = Object.keys(schema!.parameters.properties)
+    const keys = Object.keys(schema!.parameters.properties as Record<string, unknown>)
     expect(keys).toEqual(expect.arrayContaining(['command', 'timeout', 'description', 'run_in_background', 'dangerouslyDisableSandbox']))
     expect(schema!.description).toContain('detached')
     expect(schema!.description).toContain('run_in_background')
