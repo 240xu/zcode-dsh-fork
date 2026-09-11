@@ -13,7 +13,7 @@ import * as yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { SHIPPED_PRESET_ROOT } from '@deepseek-ai/dsh-agent-presets'
-import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
+import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt'
 
 interface CompositionEntry {
   id?: unknown
