@@ -12,6 +12,8 @@ We recommend using an agent to explore the codebase and understand its architect
 
 There is no privileged core to patch: you extend dsh by mounting a plugin beside the others, and registrations are effects that unwind when their plugin unloads.
 
+Replaceability has a boundary worth stating precisely: swapping a whole row (adapter, tool set, prompt section, scoped shadow, even the agent factory) composes with the existing driver, but the driver's own machinery — the private turn/step state machine, the internal scheduler symbol, the session-log projection and its model-visible-means-logged invariant, route binding/persistence, the closed approval-outcome mapping, and the owner-relative id registries — is core-owned and can only be intercepted at its documented waterfalls, never re-owned by a `defineTool` plugin. Reproducing a different loop's internals from inside a tool inverts that ownership arrow; behavioral parity through tools does not entail internal-architecture equivalence.
+
 ## Profiles and bundles
 
 A running `dsh` is a plugin tree composed at boot from ordered layers.

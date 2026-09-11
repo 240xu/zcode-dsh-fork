@@ -37,6 +37,12 @@ import { BEHAVIOR_TEXT } from './behavior-text.ts'
 import { buildCliPrefix, buildCurrentDate, buildEnvInfo, buildSystemContext } from './env-sections.ts'
 import { TOOL_DESCRIPTIONS } from './tool-texts.ts'
 
+// Re-exported so sibling preset packages consume the description bank through
+// the package root instead of reaching into ./src/* subpaths, which packed
+// tarballs do not contain.
+/** @internal Preset-shared bank; not part of this package's model surface. */
+export { TOOL_DESCRIPTIONS } from './tool-texts.ts'
+
 export const inject = ['systemPrompt']
 
 /** ZCode's Context Management section, verbatim from the shipped evidence file. */

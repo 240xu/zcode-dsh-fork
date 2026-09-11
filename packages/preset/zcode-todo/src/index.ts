@@ -39,7 +39,7 @@ import type { ZodType } from 'zod'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { TodoItem } from '@deepseek-ai/dsh-tool-todo'
-import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
+import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt'
 
 export const inject = ['tools', 'sessionProjections'] as const
 

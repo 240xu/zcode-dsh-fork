@@ -42,13 +42,12 @@ import { isAbsolute, join, relative, sep } from 'node:path'
 import { realpathSync } from 'node:fs'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ShellProcess } from '@deepseek-ai/dsh-shell'
-import { processOutcome } from '@deepseek-ai/dsh-tool-bash/src/background.ts'
-import { renderProcessRead } from '@deepseek-ai/dsh-tool-bash/src/render.ts'
+import { processOutcome, renderProcessRead } from '@deepseek-ai/dsh-tool-bash'
 import { TOOL_ABORTED, defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-shell-env'
-import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
+import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt'
 
 export const inject = ['tools', 'shell', 'shellEnv', 'systemPrompt'] as const
 

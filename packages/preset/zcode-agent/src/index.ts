@@ -31,7 +31,7 @@ import type { JobOutcome } from '@deepseek-ai/dsh-jobs'
 import type { SubagentResult, SubagentRun } from '@deepseek-ai/dsh-subagent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt/src/tool-texts.ts'
+import { TOOL_DESCRIPTIONS } from '@deepseek-ai/dsh-zcode-prompt'
 import { EXPLORE_PERSONA, GENERAL_PERSONA } from './personas.ts'
 
 export const inject = ['tools', 'subagents'] as const
