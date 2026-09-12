@@ -3,7 +3,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import sharp, { type Sharp } from 'sharp'
+import { sharp } from './sharp-loader.ts'
+import type { Sharp } from 'sharp'
 import { AttachmentError, ImageVariantId, requestImageDimensions } from '@deepseek-ai/dsh-attachment'
 import type {
   ImageMediaType,

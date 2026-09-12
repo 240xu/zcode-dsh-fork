@@ -3,7 +3,18 @@
 import { closeSync, openSync, readFileSync, readdirSync, readlinkSync, readSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
-import { createWindowsProcessInspector } from './windows-inspector.ts'
+import type { createWindowsProcessInspector as createWindowsProcessInspectorType } from './windows-inspector.ts'
+
+/**
+ * Windows-only inspector module, loaded exclusively on win32.
+ * `windows-inspector` pulls the koffi native, which has no android build in
+ * this tree — a static import would kill plugin load on android even though
+ * nothing here ever touches Win32 (the module's own contract: non-Windows
+ * processes never touch Win32 libraries). Gate at module scope so the
+ * specifier is never resolved off Windows.
+ */
+const windowsInspector: { createWindowsProcessInspector: typeof createWindowsProcessInspectorType } | undefined =
+  process.platform === 'win32' ? await import('./windows-inspector.ts') : undefined
 
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
 export interface ProcessIdentity {
@@ -530,8 +541,13 @@ export function createProcessInspector(
   arch: NodeJS.Architecture = process.arch,
   internals: ProcessInspectorInternals = DEFAULT_INTERNALS,
 ): ProcessInspector {
-  if (platform === 'linux') return new LinuxProcessInspector(arch, internals)
+  // Android (Termux) exposes the same /proc table Linux does; the upstream
+  // 0.1.2-rc.1 line reads `linux || android` here.
+  if (platform === 'linux' || platform === 'android') return new LinuxProcessInspector(arch, internals)
   if (platform === 'darwin') return new MacProcessInspector(internals)
-  if (platform === 'win32') return createWindowsProcessInspector()
+  if (platform === 'win32') {
+    if (windowsInspector === undefined) throw new Error('subprocess-local: windows inspector unavailable off win32')
+    return windowsInspector.createWindowsProcessInspector()
+  }
   throw new Error(`subprocess-local: terminal inspection is unsupported on platform ${platform}`)
 }

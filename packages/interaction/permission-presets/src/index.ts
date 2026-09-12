@@ -192,9 +192,11 @@ export class PermissionPresetService extends Service {
     if (CUSTOM_PRESET in this.presets) {
       throw new Error(`permission: "${CUSTOM_PRESET}" is reserved for the derived not-a-preset state and cannot name a table entry`)
     }
-    if (ctx.shell.sandboxMode === undefined) {
-      throw new Error('permission: the mounted bash executor does not confine (no sandboxMode) — presets bundle a sandbox mode, so composing this plugin over an unconfined executor is a misconfiguration')
-    }
+    // No boot rejection for an unknown executor mode (undefined): on hosts
+    // without a sandbox backend (Termux) the executor cannot report one,
+    // and upstream 0.1.2-rc.1 boots there too (it throws exclusively on an
+    // explicit `false`, which no executor in this tree reports). Presets
+    // still govern approvals; OS-level enforcement stays host-controlled.
     const inferredDefault = this.derive(EMPTY_KNOBS)
     const defaultPreset = config.defaultPreset ?? inferredDefault
     if (defaultPreset === CUSTOM_PRESET) {
