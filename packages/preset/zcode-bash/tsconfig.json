@@ -1,0 +1,23 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cosmokit" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../core/agent" },
+    { "path": "../../core/system-prompt" },
+    { "path": "../../core/tools" },
+    { "path": "../../jobs/jobs" },
+    { "path": "../../llm/llm" },
+    { "path": "../../sandbox/sandbox-policy" },
+    { "path": "../../shell/shell" },
+    { "path": "../../shell/shell-env" },
+    { "path": "../../shell/tool-bash" },
+    { "path": "../zcode-prompt" }
+  ]
+}
