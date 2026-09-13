@@ -1,0 +1,3 @@
+name: ZCode 模式
+description: ZCode 3.10.2 行为移植：ZCode 系统提示词、工具语义、四权限模式、Memory 与 Explore 子代理。运行于 DSH 原生 agent loop，不含任何官方 ZCode runtime。
+order: 5

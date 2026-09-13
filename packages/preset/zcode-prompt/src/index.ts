@@ -6,7 +6,7 @@
  * registered throws in dsh-tools, so ZCode tool semantics arrive as prompt
  * prose beside DSH's own tool schemas, never as replacement tool entries.
  *
- * Sections (order values chosen between DEPLOYMENT_PERSONA=0 and
+ * Sections (order values chosen between DEPLOYMENT_PERSONA_PREFIX=0 and
  * PLAN_POLICY=500; literal orders are legal — section() only requires a
  * finite number):
  * - `zcode:behavior` (order 100): identity/Harness + dynamic behavior,
