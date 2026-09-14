@@ -35,8 +35,23 @@ export function apply(ctx: Context): void {
     parameters: {
       agent_id: {
         type: 'string',
-        required: true,
-        description: 'The agent id of your direct continuable child, or your direct parent when you are a resident continuable child.',
+        description: 'The agent id of your direct continuable child, or your direct parent when you are a resident continuable child. Provide this or `to`.',
+      },
+      // Oracle-compat alias (ZCode `SendMessage` takes `to`): accepted and
+      // resolved identically; at least one of `agent_id`/`to` is required.
+      to: {
+        type: 'string',
+        description: 'Alias for `agent_id` (oracle-compatible callers).',
+      },
+      // Oracle contract (CONFIRMED live, corpus/subagents/message-
+      // delivery): ZCode `SendMessage` records `summary` as the task
+      // description (metadata/UI only) and delivers `message` as a new
+      // user-role turn; `summary` never reaches model-visible context.
+      // Accept-and-ignore here is equivalence for all model-observable
+      // behavior (this runtime keeps no task-metadata store).
+      summary: {
+        type: 'string',
+        description: 'A short summary shown as a preview in the UI (accepted; recorded nowhere by this runtime).',
       },
       message: {
         type: 'string',
@@ -54,7 +69,7 @@ export function apply(ctx: Context): void {
       },
       render: (args, _value) => [{
         type: 'text',
-        text: `message delivered to agent ${args.agent_id}`,
+        text: `message delivered to agent ${args.agent_id ?? args.to}`,
       }],
     },
     async execute(args, exec) {
@@ -62,10 +77,14 @@ export function apply(ctx: Context): void {
       if (!sender) {
         throw new Error('send_message requires a calling agent (exec.agent was undefined)')
       }
+      const target = args.agent_id ?? args.to
+      if (target === undefined) {
+        throw new Error('send_message requires `agent_id` or `to`')
+      }
       const message: ContentBlock[] = [{ type: 'text', text: args.message }]
       const messageId = await ctx.subagents.sendMessage(
         sender,
-        brandString<SessionId>(args.agent_id),
+        brandString<SessionId>(target),
         message,
         { signal: exec.signal },
       )

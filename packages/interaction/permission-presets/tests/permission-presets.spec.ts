@@ -180,9 +180,14 @@ describe('PermissionPresetService', () => {
     ])
   })
 
-  it('rejects composition over a non-confining executor at load', async () => {
-    await expect(mounted({ bashDefault: undefined }))
-      .rejects.toThrow(/does not confine/)
+  it('boots over an unknown executor mode (no sandbox backend reports one)', async () => {
+    // Upstream 0.1.2-rc.1 parity: only an explicit `false` would reject.
+    // Unknown (undefined, e.g. Termux) mounts instead of dying at load;
+    // derivation still reports custom since no shipped preset matches an
+    // unknown mode — that semantics is unchanged, only the boot death is gone.
+    const ctx = await mounted({ bashDefault: undefined, config: { defaultPreset: 'workspace-write' } })
+    expect(ctx.permissionPresets.current(freshSession('sess-unknown-exec'))).toBe('custom')
+    expect(ctx.permissionPresets.optionOf('workspace-write').name).toBe('workspace-write')
   })
 
   it('optionOf() presents shipped labels/descriptions, falls back to the raw key, and fixes custom', async () => {

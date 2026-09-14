@@ -26,6 +26,14 @@ import type { ShellRunResult } from '@deepseek-ai/dsh-shell'
 import { processOutcome } from './background.ts'
 import { parseExitStatus, renderProcessRead, renderResult } from './render.ts'
 
+// Re-exported so preset-scoped shells (e.g. the zcode Bash shadow) reuse the
+// exact outcome/render mapping through the package root instead of reaching
+// into ./src/* subpaths, which packed tarballs do not contain.
+/** @internal Preset-shared helper; not part of the tool's model surface. */
+export { processOutcome } from './background.ts'
+/** @internal Preset-shared helper; not part of the tool's model surface. */
+export { renderProcessRead } from './render.ts'
+
 export const name = 'tool-bash'
 export const inject = ['tools', 'shell', 'systemPrompt', 'shellEnv']
 

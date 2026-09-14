@@ -1,6 +1,7 @@
 /** Deterministic provider-independent image normalization. */
 
-import sharp, { type Sharp } from 'sharp'
+import { sharp } from './sharp-loader.ts'
+import type { Sharp } from 'sharp'
 import { AttachmentError, requestImageDimensions } from '@deepseek-ai/dsh-attachment'
 import type { ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import { encodeFirstWithinLimit, encodingLadder, isExhaustedEncoding } from './encoding.ts'

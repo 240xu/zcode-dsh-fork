@@ -275,6 +275,11 @@ export class PlanModeController extends Service {
       description: EXIT_DESCRIPTION,
       parameters: {
         plan: { type: 'string', required: true, description: 'The complete plan, as markdown, starting with a # heading that names it.' },
+        // Oracle-compat passthrough (ZCode `ExitPlanMode` takes
+        // `allowedPrompts` describing action categories needed to implement
+        // the plan): accepted so oracle-shaped calls validate. This runtime
+        // approves the plan as presented, so the value is currently ignored.
+        allowedPrompts: { type: 'array', description: 'Prompt-based permissions needed to implement the plan (accepted; not enforced by this runtime).' },
       },
       output: {
         schema: {
