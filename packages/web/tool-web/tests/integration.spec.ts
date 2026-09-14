@@ -74,6 +74,12 @@ describe('web_fetch integration over the real backend', () => {
     expect(text).toContain('World')
   })
 
+  it('accepts the oracle-compat prompt without changing the fetch', async () => {
+    const out = await call('web_fetch', { url: base, prompt: 'Summarize this page' })
+    expect(out.isError).toBe(false)
+    expect(out.content.map(b => b.type === 'text' ? b.text : '').join('')).toContain('# Hello')
+  })
+
   it('reports a 404 as a result, not an error', async () => {
     handler = (_req, res) => { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('missing') }
     const out = await call('web_fetch', { url: base })
@@ -112,7 +118,7 @@ describe('tool-call timeout policy over the migrated web tools', () => {
     const byName = new Map(ctx.tools.schemas().map(s => [s.name, s]))
     const fetchParams = byName.get('web_fetch')!.parameters as { properties: Record<string, unknown> }
     const searchParams = byName.get('web_search')!.parameters as { properties: Record<string, unknown>; required?: string[] }
-    expect(Object.keys(fetchParams.properties)).toEqual(['url'])
+    expect(Object.keys(fetchParams.properties)).toEqual(['url', 'prompt'])
     expect('timeout_ms' in fetchParams.properties).toBe(false)
     expect(Object.keys(searchParams.properties)).toEqual(['queries'])
     expect(searchParams.required).toEqual(['queries'])
