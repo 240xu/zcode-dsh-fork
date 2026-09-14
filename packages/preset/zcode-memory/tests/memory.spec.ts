@@ -164,7 +164,7 @@ describe('scope and roots', () => {
 describe('the plugin row', () => {
   it('registers the zcode:memory section into the registry', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'test persona' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'test persona' })
     await ctx.plugin(ZcodeMemory)
 
     const assembly = await ctx.systemPrompt.assemble({})

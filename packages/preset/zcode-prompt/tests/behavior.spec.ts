@@ -68,7 +68,7 @@ describe('the tool descriptions', () => {
 describe('the context text', () => {
   it('carries the bundle-verified Context Management anchors', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'test persona' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'test persona' })
     await ctx.plugin(ZcodePrompt)
 
     const assembly = await ctx.systemPrompt.assemble({})
@@ -91,7 +91,7 @@ describe('the context text', () => {
 describe('the plugin rows', () => {
   it('registers both sections into the system prompt registry', async () => {
     const ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: 'test persona' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: 'test persona' })
     await ctx.plugin(ZcodePrompt)
 
     const assembly = await ctx.systemPrompt.assemble({})
