@@ -163,6 +163,11 @@ const packageFileExtras: Readonly<Record<string, readonly string[]>> = {
   '@deepseek-ai/dsh-experimental-code-runtime-python': ['py/**/*.py'],
   // The shipped preset compositions travel inside the roster package.
   '@deepseek-ai/dsh-agent-presets': ['presets'],
+  // ZCode evidence txt assets ride beside the built lib entries (copied by
+  // scripts/copy-zcode-txt-assets.ts at the end of build:lib).
+  '@deepseek-ai/dsh-zcode-prompt': ['lib/identity-section.txt', 'lib/dynamic-behavior.txt', 'lib/context-management.txt'],
+  '@deepseek-ai/dsh-zcode-memory': ['lib/memory-prompt.txt'],
+  '@deepseek-ai/dsh-zcode-agent': ['lib/personas.js'],
   // The Web Host mounts the default-off settings owner independently of each
   // Agent-scoped delegation-tool instance.
   '@deepseek-ai/dsh-tool-subagent': ['lib/model-selection-settings.js'],

@@ -1109,3 +1109,21 @@ describe('user-explicit invocation injection', () => {
     expect(invoked).toEqual(['shared-skill'])
   })
 })
+
+describe('dsh-tool-skill oracle-compat aliases', () => {
+  it('resolves the `skill` alias and accepts `args`', async () => {
+    const home = await tempDir('tool-skill-alias')
+    const ctx = await setup(home)
+    ctx.skills.register({ name: 'alias-skill', description: 'Alias', source: 'runtime', content: 'Alias instructions.' })
+    const viaAlias = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('alias-1'), name: 'skill', arguments: { skill: 'alias-skill', args: 'extra context' } })
+    expect(viaAlias.isError).toBe(false)
+    const neither = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('alias-2'), name: 'skill', arguments: {} })
+    expect(neither.isError).toBe(true)
+    expect(ctx.tools.get('skill')?.presentCall?.({ skill: 'alias-skill' })).toEqual({
+      card: 'generic',
+      title: 'Load skill alias-skill',
+      kind: 'read',
+      rawInput: 'alias-skill',
+    })
+  })
+})

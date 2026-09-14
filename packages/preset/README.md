@@ -26,6 +26,11 @@ The preset group provides per-session agent composition: an agent preset is a di
 |---|---|---|
 | [`agent-presets`](agent-presets/README.md) | Preset roster, discovery over trusted and user roots, per-agent composition, copy-only authoring | `ctx.agentPresets` |
 | [`persona`](persona/README.md) | The composable persona row a preset mounts to shadow or replace the deployment persona | — |
+| [`zcode-prompt`](zcode-prompt/README.md) | Oracle-verbatim ZCode tool texts and behavior sections for the zcode preset | — |
+| [`zcode-memory`](zcode-memory/README.md) | ZCode memory prompt section for the zcode preset | — |
+| [`zcode-todo`](zcode-todo/README.md) | Oracle TodoRead/TodoWrite shapes over the shared todos projection | registers `todo_read` + shadows `todo_write` |
+| [`zcode-bash`](zcode-bash/README.md) | Oracle Bash contract (cwd, timeouts, truncation, background) over the shell seam | registers `bash` (preset scope) |
+| [`zcode-agent`](zcode-agent/README.md) | Oracle single-Agent multiplexer over the delegation rows | registers `Agent` (preset scope) |
 
 -----
 

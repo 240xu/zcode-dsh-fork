@@ -831,13 +831,30 @@ describe('exit_plan_mode', () => {
     })
   }
 
-  it('registers the tool with one required plan argument', async () => {
+  it('registers the tool with one required plan argument plus the oracle-compat passthrough', async () => {
     const ctx = await setup()
     const schema = ctx.tools.schemas().find(entry => entry.name === EXIT_PLAN_MODE)
     const parameters = schema?.parameters as { required?: string[]; properties?: Record<string, unknown> }
     expect(schema?.description).toMatch(/^Use only in plan mode\./)
-    expect(Object.keys(parameters.properties ?? {})).toEqual(['plan'])
+    expect(Object.keys(parameters.properties ?? {})).toEqual(['plan', 'allowedPrompts'])
     expect(parameters.required).toEqual(['plan'])
+  })
+
+  it('approve with oracle-shaped allowedPrompts: accepted, approved, not enforced', async () => {
+    const { ctx, agent } = await setupWithReview({ selected: ['Approve'] })
+    const result = await ctx.tools.execute({
+      callId: ToolCallId(`call-exit-${++callCounter}`),
+      name: EXIT_PLAN_MODE,
+      arguments: {
+        plan: '# The plan\n\ndo things',
+        allowedPrompts: [{ tool: 'Bash', prompt: 'PROMPT-MARKER-77 run probe commands' }],
+      },
+      signal: new AbortController().signal,
+      agent,
+    })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected approved plan result')
+    expect(result.value).toEqual({ approved: true })
   })
 
   it('rejects an agent-less call', async () => {

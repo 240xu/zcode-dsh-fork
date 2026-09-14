@@ -921,6 +921,70 @@ describe('a session keeps the preset it was created with', () => {
   })
 })
 
+/**
+ * The zcode preset through the real shipped composition: ZCode's persona,
+ * the three evidence-backed prompt sections, the DSH tool catalog ZCode
+ * semantics ride beside, and the Explore subagent entry.
+ */
+describe('the zcode preset composition', () => {
+  it('composes the ZCode persona, sections, tool catalog, and Explore subagent', async () => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('preset-zcode'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'zcode').then(() => undefined),
+    })
+    try {
+      expect(handle.agent.session.header.agentPreset).toBe('zcode')
+
+      const assembly = await ctx.systemPrompt.assemble({ scope: handle.agent })
+      const names = assembly.sections.map(section => section.name)
+
+      // The persona row carries ZCode's identity.
+      const persona = assembly.sections.find(section => section.name === 'deployment:persona-prefix')?.text ?? ''
+      expect(persona).toContain('You are ZCode, an interactive coding agent running on DeepSeek Harness')
+
+      // All evidence-backed zcode sections are present.
+      expect(names).toContain('zcode:cli-prefix')
+      expect(names).toContain('zcode:behavior')
+      expect(names).toContain('zcode:context')
+      expect(names).toContain('zcode:env')
+      expect(names).toContain('zcode:date')
+      expect(names).toContain('zcode:memory')
+      expect(names).toContain('zcode:tool-semantics')
+      const behavior = assembly.sections.find(section => section.name === 'zcode:behavior')?.text ?? ''
+      expect(behavior).toContain('# Harness')
+      expect(behavior).toContain('Your text output is what the user reads')
+      const context = assembly.sections.find(section => section.name === 'zcode:context')?.text ?? ''
+      expect(context).toContain('# Context management')
+      expect(context).toContain('When you have enough information to act, act.')
+      const memory = assembly.sections.find(section => section.name === 'zcode:memory')?.text ?? ''
+      expect(memory).toContain('# Persistent Agent Memory')
+      // Scope-resolved root per resolvePersistentAgentMemoryRoot
+      // (user scope: <storageRoot>/agent-memory/<agent>)
+      expect(memory).toContain('agent-memory')
+      expect(memory).not.toContain('<MEMORY_ROOT>')
+      expect(memory).not.toContain('<SCOPE_GUIDANCE>')
+      expect(memory).toContain('## MEMORY.md')
+      const semantics = assembly.sections.find(section => section.name === 'zcode:tool-semantics')?.text ?? ''
+      expect(semantics).toContain('## Read')
+      expect(semantics).toContain('## Bash')
+      expect(semantics).toContain('Launch a new agent to handle complex, multi-step tasks.')
+      expect(semantics).toContain('## ZCode tools mapped to DSH equivalents')
+
+      // DSH's own tool catalog composes underneath the ZCode semantics.
+      const catalog = toolNames(ctx, handle.agent)
+      for (const expected of ['bash', 'edit', 'glob', 'grep', 'read', 'write', 'todo_read', 'todo_write']) {
+        expect(catalog).toContain(expected)
+      }
+      // The Explore subagent tool and its ZCode persona row are present.
+      expect(catalog).toContain('explore')
+      const exploreSchema = ctx.tools.schemas(handle.agent).find(tool => tool.name === 'explore')
+      expect(exploreSchema?.description).toContain('agent')
+    } finally {
+      await handle.dispose()
+    }
+  })
+})
+
 describe('a composition that configures its own preset roots', () => {
   let rootsCtx: Context
   let teamRoot: string
