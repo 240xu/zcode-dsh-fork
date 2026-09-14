@@ -30,7 +30,7 @@
     "@deepseek-ai/cordis": "workspace:^"
   },
   "dependencies": {
-    "koffi": "^3.1.0"
+    "koffi": "^3.2.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^"

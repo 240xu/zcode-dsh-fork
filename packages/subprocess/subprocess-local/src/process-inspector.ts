@@ -6,15 +6,17 @@ import type { SubprocessTerminalSignal } from '@deepseek-ai/dsh-subprocess'
 import type { createWindowsProcessInspector as createWindowsProcessInspectorType } from './windows-inspector.ts'
 
 /**
- * Windows-only inspector module, loaded exclusively on win32.
- * `windows-inspector` pulls the koffi native, which has no android build in
- * this tree — a static import would kill plugin load on android even though
- * nothing here ever touches Win32 (the module's own contract: non-Windows
- * processes never touch Win32 libraries). Gate at module scope so the
- * specifier is never resolved off Windows.
+ * Windows-only inspector module, loaded defensively: `windows-inspector`
+ * pulls the koffi native, which has no build on some platforms (koffi 3.1.x
+ * on android). A static import would kill plugin load wherever the native
+ * is absent even though nothing here touches Win32 off win32 (the module's
+ * own contract: non-Windows processes never touch Win32 libraries). Gate on
+ * import success — not on platform — so pure dispatch (e.g. constructing the
+ * win32 inspector with fake internals in tests, or android hosts whose koffi
+ * ships an android build) keeps working wherever the native loads.
  */
 const windowsInspector: { createWindowsProcessInspector: typeof createWindowsProcessInspectorType } | undefined =
-  process.platform === 'win32' ? await import('./windows-inspector.ts') : undefined
+  await import('./windows-inspector.ts').catch(() => undefined)
 
 /** PID plus start identity, preventing teardown escalation after PID reuse. */
 export interface ProcessIdentity {
