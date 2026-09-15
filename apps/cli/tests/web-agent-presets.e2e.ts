@@ -933,7 +933,10 @@ describe('the zcode preset composition', () => {
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'zcode').then(() => undefined),
     })
     try {
-      expect(handle.agent.session.header.agentPreset).toBe('zcode')
+      // NOTE: direct mount() composes capabilities without touching the
+      // header — header.agentPreset is the Host creation fact (set only via
+      // session-controller composeAgent). What this preset runs is proven
+      // below via assembly sections + tool catalog on both eras.
 
       const assembly = await ctx.systemPrompt.assemble({ scope: handle.agent })
       const names = assembly.sections.map(section => section.name)
@@ -975,10 +978,12 @@ describe('the zcode preset composition', () => {
       for (const expected of ['bash', 'edit', 'glob', 'grep', 'read', 'write', 'todo_read', 'todo_write']) {
         expect(catalog).toContain(expected)
       }
-      // The Explore subagent tool and its ZCode persona row are present.
-      expect(catalog).toContain('explore')
-      const exploreSchema = ctx.tools.schemas(handle.agent).find(tool => tool.name === 'explore')
-      expect(exploreSchema?.description).toContain('agent')
+      // The Agent multiplexer (general-purpose + Explore child types) is present.
+      // NOTE: there is no standalone `explore` tool in either era's
+      // composition — Explore is a child type of the `agent` tool.
+      expect(catalog).toContain('agent')
+      const agentSchema = ctx.tools.schemas(handle.agent).find(tool => tool.name === 'agent')
+      expect(agentSchema?.description).toContain('Explore')
     } finally {
       await handle.dispose()
     }

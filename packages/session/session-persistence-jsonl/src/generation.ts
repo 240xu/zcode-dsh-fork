@@ -14,6 +14,7 @@ import {
   open as fsOpen,
   readFile as fsReadFile,
   readdir as fsReaddir,
+  rename as fsRename,
   rm as fsRm,
   stat as fsStat,
   type FileHandle,
@@ -176,6 +177,7 @@ interface GenerationFileSystem {
   stat(path: string): Promise<JsonlPhysicalIdentity>
   lstat(path: string): Promise<{ isFile(): boolean; isSymbolicLink(): boolean }>
   link(existingPath: string, newPath: string): Promise<void>
+  rename(oldPath: string, newPath: string): Promise<void>
   rm(path: string): Promise<void>
 }
 
@@ -216,6 +218,7 @@ const defaultFileSystem: GenerationFileSystem = {
   stat: path => fsStat(path, { bigint: true }),
   lstat: path => fsLstat(path),
   link: fsLink,
+  rename: fsRename,
   rm: path => fsRm(path, { force: true }),
 }
 
@@ -831,7 +834,15 @@ async function publishCurrentExclusive(
     /* v8 ignore else -- a non-collision filesystem error propagates unchanged. */
     if (isEEXIST(error)) return false
     /* v8 ignore next -- the filesystem error is already complete. */
-    throw error
+    // Termux/bionic (2026-09-12): hard links fail with EACCES on this
+    // filesystem; rename is atomic within the directory and the caller
+    // tolerates the staged path already being gone. Mirrors the live
+    // 0.1.5 deployment's equivalent fallback.
+    if ((error as NodeJS.ErrnoException | null)?.code === 'EACCES'
+      || (error as NodeJS.ErrnoException | null)?.code === 'EPERM'
+      || (error as NodeJS.ErrnoException | null)?.code === 'ENOSYS') {
+      await internals.fs.rename(staged, currentPath)
+    } else throw error
   }
   await syncDirectory(dirname(currentPath), internals)
   return true

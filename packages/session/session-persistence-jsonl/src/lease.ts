@@ -42,6 +42,7 @@ export const LEASE_FILENAME = 'session.lock'
 /** The held kernel lock: a POSIX descriptor or a Win32 semaphore handle. */
 type HeldLock =
   | { readonly kind: 'posix'; readonly handle: FileHandle }
+  | { readonly kind: 'posix-unlocked'; readonly handle: FileHandle }
   | { readonly kind: 'win32'; readonly handle: number }
 
 /** Whether a flock failure means another descriptor holds the lock. */
@@ -94,6 +95,15 @@ export class SessionWriteLease {
           await tryLockExclusive(handle.fd)
         } catch (error: unknown) {
           if (isLockContention(error)) throw new SessionAlreadyOwnedError(id)
+          // Termux/bionic (2026-09-12): node-addon-system ships no
+          // android-arm64 binding; its platform guard throws
+          // ERR_FLOCK_UNSUPPORTED_PLATFORM. Single-user device:
+          // proceed without the inter-process lease instead of
+          // failing session writes (release() still closes the fd).
+          // Mirrors the live 0.1.5 deployment's equivalent fallback.
+          if ((error as NodeJS.ErrnoException | null)?.code === 'ERR_FLOCK_UNSUPPORTED_PLATFORM') {
+            return new SessionWriteLease({ kind: 'posix-unlocked', handle })
+          }
           throw error
         }
         const held = await handle.stat({ bigint: true })

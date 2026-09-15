@@ -13,7 +13,7 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readdir, realpath, link, rename, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -1136,6 +1136,16 @@ class JsonlSessionPersistence extends SessionPersistence {
     try {
       await link(tmp, finalPath)
       linked = true
+    } catch (error: unknown) {
+      // Termux/bionic (2026-09-12): hard links fail with EACCES on this
+      // filesystem; rename is atomic within the directory. Mirrors the live
+      // 0.1.5 deployment's equivalent fallback.
+      if ((error as NodeJS.ErrnoException | null)?.code === 'EACCES'
+        || (error as NodeJS.ErrnoException | null)?.code === 'EPERM'
+        || (error as NodeJS.ErrnoException | null)?.code === 'ENOSYS') {
+        await rename(tmp, finalPath)
+        linked = true
+      } else throw error
     } finally {
       // Remove an unpublished temp on failure. After publication, defer cleanup
       // until the directory entry is durable so cleanup cannot reject a live log.
