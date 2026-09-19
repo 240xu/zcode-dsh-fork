@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-win32-process": "workspace:^",
-    "koffi": "^3.1.0"
+    "koffi": "^3.2.1"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-pwsh-local": "workspace:^",
