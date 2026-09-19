@@ -13,7 +13,7 @@
  *
  * Environment:
  *   ZCODE_LIVE_KEY      API key for the gateway (required)
- *   ZCODE_LIVE_BASE     gateway base, default https://ai.sepic.space/v1
+ *   ZCODE_LIVE_BASE     gateway base (required; no default)
  *   ZCODE_LIVE_MODEL    model id, default qwen3.7-plus-fast
  *   ZCODE_LIVE_TASK     task text override
  */
@@ -41,8 +41,8 @@ const WEB_PATCH = join(REPO_ROOT, 'packages/bundle/web-app/cordis.patch.yml')
 const INSTALL_ANCHOR = join(REPO_ROOT, 'apps/cli/package.json')
 
 const API_KEY = process.env.ZCODE_LIVE_KEY ?? ''
-const BASE_URL = process.env.ZCODE_LIVE_BASE ?? 'https://ai.sepic.space/v1'
-const MODEL = process.env.ZCODE_LIVE_MODEL ?? 'qwen3.7-plus-fast'
+const BASE_URL = process.env.ZCODE_LIVE_BASE ?? ''
+const MODEL = process.env.ZCODE_LIVE_MODEL ?? ''
 const TASK
   = process.env.ZCODE_LIVE_TASK
     ?? 'Without using any tools, answer in one short sentence: which permission modes does the user choose between?'
