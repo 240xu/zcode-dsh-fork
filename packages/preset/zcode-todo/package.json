@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-zcode-todo",
   "description": "ZCode 3.10.2 TodoRead tool for the zcode agent preset: a read-only view over the shared todos projection owned by dsh-tool-todo.",
-  "version": "0.1.2-alpha.5",
+  "version": "0.1.5-rc.2",
   "publishConfig": {
     "access": "public"
   },

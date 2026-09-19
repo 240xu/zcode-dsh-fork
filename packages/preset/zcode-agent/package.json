@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-zcode-agent",
   "description": "ZCode 3.10.2 Agent multiplexer for the zcode agent preset: the oracle's single Agent tool (subagent_type dispatch) over DSH's per-type delegation rows.",
-  "version": "0.1.2-alpha.5",
+  "version": "0.1.5-rc.2",
   "publishConfig": {
     "access": "public"
   },
@@ -23,7 +23,6 @@
   },
   "files": [
     "lib/index.js",
-    "lib/personas.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

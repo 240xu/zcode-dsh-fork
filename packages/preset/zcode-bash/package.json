@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-zcode-bash",
   "description": "ZCode 3.10.2 Bash tool for the zcode agent preset: session-persistent cwd, background jobs, ZCode timeouts and schema, over DSH's own shell seam.",
-  "version": "0.1.2-alpha.5",
+  "version": "0.1.5-rc.2",
   "publishConfig": {
     "access": "public"
   },

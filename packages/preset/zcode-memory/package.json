@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-zcode-memory",
   "description": "ZCode 3.10.2 persistent three-scope memory prompt section for the zcode agent preset. Byte-verified evidence from the official ZCode Desktop 3.10.2 runtime.",
-  "version": "0.1.2-alpha.5",
+  "version": "0.1.5-rc.2",
   "publishConfig": {
     "access": "public"
   },
