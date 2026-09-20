@@ -35,7 +35,31 @@
 | 4. 组合与 e2e | 真实 shipped composition 装配断言 | preset spec 7/7 + e2e 块绿 |
 | 5. 生产实测 | 真实模型路由下的完整 turn：工具真实执行、输出逐字回复 | 三轮完整证据 |
 
-## 快速开始
+## 安装（npm，面向使用者）
+
+在**任意官方 DeepSeek Harness 0.1.5-rc.2 安装**上（`npx @deepseek-ai/dsh web` 亦同）：
+
+```sh
+cd ~/.dsh/profiles/<你的profile>
+npm i @240xu/dsh-zcode-pack
+```
+
+然后在 Harness 配置的 `agent-presets` 行加一个 user root（一次性）：
+
+```yaml
+roots:
+  - path: '~/.dsh/profiles/<你的profile>/node_modules/@240xu/dsh-zcode-pack/presets/zcode'
+    trust: user
+```
+
+重启后模式选择器出现 **"ZCode 模式"**。说明：
+
+- `@240xu/dsh-zcode-*` 五个行为包已 vendored 进 pack（一个 npm install 搞定）；
+- `@deepseek-ai/*` 运行时依赖从**宿主安装**解析（healed fallback），无需单独安装；
+- 已在 0.1.5-rc.2 + headless 活体探针上端到端验证（preset 发现 → 组合挂载 → 工具执行逐字节精确）；
+- npm 上另有五个独立包 `@240xu/dsh-zcode-{bash,prompt,todo,agent,memory}@0.1.5-rc.2` 可单独引用。
+
+## 快速开始（从源码构建，面向开发者）
 
 ```sh
 # 依赖：Node.js ≥ 24，pnpm ≥ 10
