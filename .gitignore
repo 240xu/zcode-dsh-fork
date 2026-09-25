@@ -46,3 +46,12 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 native/system/test/bin/
+
+# zcode-official local build/test artifacts (no install tree on this host)
+packages/preset/zcode-official/node_modules/
+packages/preset/zcode-official/node_modules-testenv
+packages/preset/zcode-official/.testbin/
+packages/preset/zcode-official/lib/
+packages/preset/zcode-official/tsconfig.tsbuildinfo
+packages/preset/zcode-official/vitest.config.ts
+packages/preset/zcode-official/tsconfig.check.json

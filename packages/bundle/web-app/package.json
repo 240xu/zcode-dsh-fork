@@ -35,7 +35,8 @@
     "presets/ptc.patch.yml",
     "presets/minimal.patch.yml",
     "presets/cordis.patch.yml",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "presets/zcode-official.patch.yml"
   ],
   "license": "MIT",
   "dsh": {
@@ -45,7 +46,8 @@
         "./presets/standard.patch.yml",
         "./presets/ptc.patch.yml",
         "./presets/minimal.patch.yml",
-        "./presets/cordis.patch.yml"
+        "./presets/cordis.patch.yml",
+        "./presets/zcode-official.patch.yml"
       ]
     }
   },
@@ -172,7 +174,8 @@
     "commander": "^15.0.0",
     "open": "^11.0.0",
     "@deepseek-ai/dsh-api-account-controller": "workspace:*",
-    "@deepseek-ai/dsh-client-ui-settings-account": "workspace:*"
+    "@deepseek-ai/dsh-client-ui-settings-account": "workspace:*",
+    "@deepseek-ai/dsh-zcode-official": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~",

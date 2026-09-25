@@ -1,0 +1,55 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "typeRoots": [
+      "/data/data/com.termux/files/home/dsh-testenv/node_modules/@types"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@deepseek-ai/cordis": [
+        "../../../vendor/cordis/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-system-prompt": [
+        "../../../packages/core/system-prompt/src/index.ts"
+      ],
+      "@deepseek-ai/schemastery": [
+        "../../../vendor/schemastery/src/index.ts"
+      ],
+      "@deepseek-ai/cosmokit": [
+        "../../../vendor/cosmokit/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-scope": [
+        "../../../packages/core/scope/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-llm": [
+        "../../../packages/llm/llm/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-home-paths": [
+        "../../../packages/core/home-paths/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-brand": [
+        "../../../packages/util/brand/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-util-values": [
+        "../../../packages/util/values/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-attachment": [
+        "../../../packages/attachment/attachment/src/index.ts"
+      ],
+      "@deepseek-ai/dsh-typert-protocol": [
+        "../../../packages/typert/protocol/src/index.ts"
+      ]
+    },
+    "noImplicitAny": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}
