@@ -1,0 +1,35 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/types.tsbuildinfo",
+    "typeRoots": [
+      "/data/data/com.termux/files/home/dsh-testenv/node_modules/@types"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@deepseek-ai/cordis": [
+        "/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/cordis/lib/types/index.d.ts"
+      ],
+      "@deepseek-ai/dsh-system-prompt": [
+        "/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-system-prompt/lib/types/index.d.ts"
+      ],
+      "@deepseek-ai/schemastery": [
+        "/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/schemastery/lib/index.d.ts"
+      ],
+      "@deepseek-ai/cosmokit": [
+        "/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/cosmokit/lib/index.d.ts"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "declarationMap": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}
